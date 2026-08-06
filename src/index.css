@@ -1,0 +1,114 @@
+/* Evolve Design System - Permanent Neutral Obsidian Glass Aesthetic */
+
+:root {
+  --bg-primary: #09090b;
+  --bg-surface: rgba(24, 24, 27, 0.8);
+  --bg-surface-hover: rgba(39, 39, 42, 0.95);
+  --border-color: rgba(255, 255, 255, 0.15);
+  --border-glow: rgba(16, 185, 129, 0.5);
+  --text-main: #ffffff;
+  --text-muted: #a1a1aa;
+  --accent-emerald: #10b981;
+  --accent-mint: #34d399;
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #09090b !important;
+  color: #ffffff !important;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism obsidian panel styling */
+.glass-panel {
+  background: rgba(24, 24, 27, 0.8) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6) !important;
+  color: #ffffff !important;
+}
+
+.glass-panel-hover:hover {
+  background: rgba(39, 39, 42, 0.95) !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+.glass-input {
+  background: rgba(18, 18, 21, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  backdrop-filter: blur(12px) !important;
+  transition: all 0.2s ease !important;
+}
+
+.glass-input:focus {
+  outline: none !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25) !important;
+}
+
+/* Text & Button Styling */
+.emerald-gradient-text {
+  background: linear-gradient(135deg, #ffffff 0%, #e4e4e7 50%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.btn-emerald {
+  background: linear-gradient(135deg, #18181b 0%, #27272a 100%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  cursor: pointer;
+}
+
+.btn-emerald:hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border-color: #34d399 !important;
+  box-shadow: 0 6px 28px 0 rgba(16, 185, 129, 0.35) !important;
+  transform: translateY(-1px);
+}
+
+/* Sound Wave Animation */
+@keyframes sound-wave {
+  0%, 100% { height: 6px; }
+  50% { height: 22px; }
+}
+
+.animate-wave-1 { animation: sound-wave 1.2s infinite ease-in-out; }
+.animate-wave-2 { animation: sound-wave 1.5s infinite ease-in-out 0.2s; }
+.animate-wave-3 { animation: sound-wave 0.9s infinite ease-in-out 0.4s; }
+.animate-wave-4 { animation: sound-wave 1.3s infinite ease-in-out 0.1s; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.6);
+}
