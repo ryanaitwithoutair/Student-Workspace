@@ -115,9 +115,9 @@ const QUOTES_DATABASE = [
 ];
 
 const DEFAULT_REMINDERS = [
-  { id: 'r1', title: 'Deep Work Sprint 1 (Core Module)', time: '09:30 AM', date: new Date().toISOString().split('T')[0], completed: true, priority: 'high' },
-  { id: 'r2', title: 'Review System Architecture Notes', time: '02:00 PM', date: new Date().toISOString().split('T')[0], completed: false, priority: 'medium' },
-  { id: 'r3', title: 'Evening Hydration & Mind Reset', time: '05:30 PM', date: new Date().toISOString().split('T')[0], completed: false, priority: 'low' }
+  { id: 'r1', title: 'Deep Work Sprint 1 (Core Module)', time: '09:30 AM', date: new Date().toISOString().split('T')[0], completed: true, priority: 'high', notes: 'Complete design specs' },
+  { id: 'r2', title: 'Review System Architecture Notes', time: '02:00 PM', date: new Date().toISOString().split('T')[0], completed: false, priority: 'medium', notes: 'Refactor state context' },
+  { id: 'r3', title: 'Evening Hydration & Mind Reset', time: '05:30 PM', date: new Date().toISOString().split('T')[0], completed: false, priority: 'low', notes: '15m walk' }
 ];
 
 export const AppProvider = ({ children }) => {
@@ -146,11 +146,16 @@ export const AppProvider = ({ children }) => {
 
   // Timer state
   const [timerMode, setTimerMode] = useState('pomodoro');
-  const [customMinutes, setCustomMinutes] = useState(30);
+  const [customMinutes, setCustomMinutes] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  // Focus Stats - Logged Focus Minutes (Not hardcoded 25)
   const [sessionsCompleted, setSessionsCompleted] = useState(() => {
     return parseInt(localStorage.getItem('evolve_sessions_count') || '0', 10);
+  });
+  const [totalLoggedFocusMinutes, setTotalLoggedFocusMinutes] = useState(() => {
+    return parseInt(localStorage.getItem('evolve_logged_focus_mins') || '50', 10);
   });
 
   // Reminders / Calendar
@@ -182,6 +187,10 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('evolve_sessions_count', sessionsCompleted.toString());
   }, [sessionsCompleted]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_logged_focus_mins', totalLoggedFocusMinutes.toString());
+  }, [totalLoggedFocusMinutes]);
 
   useEffect(() => {
     localStorage.setItem('evolve_fav_quotes', JSON.stringify(favoriteQuotes));
@@ -297,6 +306,14 @@ export const AppProvider = ({ children }) => {
     setSpaces(spaces.map(s => s.id === spaceId ? { ...s, notes } : s));
   };
 
+  // Log Focus Duration (Custom Duration dynamically added)
+  const logFocusTime = (minutes) => {
+    const mins = parseInt(minutes, 10);
+    if (isNaN(mins) || mins <= 0) return;
+    setSessionsCompleted(prev => prev + 1);
+    setTotalLoggedFocusMinutes(prev => prev + mins);
+  };
+
   // Timer Control
   useEffect(() => {
     let interval = null;
@@ -307,42 +324,58 @@ export const AppProvider = ({ children }) => {
     } else if (timeLeft === 0 && isTimerRunning) {
       setIsTimerRunning(false);
       soundEngine.playChimeNotification();
-      setSessionsCompleted(prev => prev + 1);
-      if (timerMode === 'pomodoro') {
-        alert('🎉 Focus Session Completed! Take a well-deserved short break.');
+      
+      // Determine completed duration dynamically
+      const completedDuration = timerMode === 'pomodoro' ? 25 : customMinutes;
+      logFocusTime(completedDuration);
+
+      if (timerMode === 'pomodoro' || timerMode === 'custom') {
+        alert(`🎉 Focus Session Completed (${completedDuration}m logged)! Take a well-deserved break.`);
       }
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, timerMode]);
+  }, [isTimerRunning, timeLeft, timerMode, customMinutes]);
 
   const changeTimerMode = (mode, customMins = customMinutes) => {
     setIsTimerRunning(false);
     setTimerMode(mode);
-    if (mode === 'pomodoro') setTimeLeft(25 * 60);
-    else if (mode === 'shortBreak') setTimeLeft(5 * 60);
-    else if (mode === 'longBreak') setTimeLeft(15 * 60);
-    else if (mode === 'custom') setTimeLeft(customMins * 60);
+    if (mode === 'pomodoro') {
+      setCustomMinutes(25);
+      setTimeLeft(25 * 60);
+    } else if (mode === 'shortBreak') {
+      setTimeLeft(5 * 60);
+    } else if (mode === 'longBreak') {
+      setTimeLeft(15 * 60);
+    } else if (mode === 'custom') {
+      setCustomMinutes(customMins);
+      setTimeLeft(customMins * 60);
+    }
   };
 
-  // Reminders Management
-  const addReminder = (title, time, priority = 'medium') => {
+  // Reminders / Calendar Management
+  const addReminder = (title, time, priority = 'medium', date = new Date().toISOString().split('T')[0], notes = '') => {
     const newRem = {
       id: `rem-${Date.now()}`,
-      title,
-      time,
-      date: new Date().toISOString().split('T')[0],
-      completed: false,
-      priority
+      title: title.trim(),
+      time: time || '10:00 AM',
+      date: date || new Date().toISOString().split('T')[0],
+      priority,
+      notes,
+      completed: false
     };
-    setReminders([newRem, ...reminders]);
+    setReminders(prev => [newRem, ...prev]);
+  };
+
+  const updateReminder = (id, updates) => {
+    setReminders(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   };
 
   const toggleReminder = (id) => {
-    setReminders(reminders.map(r => r.id === id ? { ...r, completed: !r.completed } : r));
+    setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: !r.completed } : r));
   };
 
   const deleteReminder = (id) => {
-    setReminders(reminders.filter(r => r.id !== id));
+    setReminders(prev => prev.filter(r => r.id !== id));
   };
 
   // Quotes
@@ -395,8 +428,11 @@ export const AppProvider = ({ children }) => {
       pauseTimer: () => setIsTimerRunning(false),
       resetTimer: () => changeTimerMode(timerMode),
       sessionsCompleted,
+      totalLoggedFocusMinutes,
+      logFocusTime,
       reminders,
       addReminder,
+      updateReminder,
       toggleReminder,
       deleteReminder,
       quotes: QUOTES_DATABASE,

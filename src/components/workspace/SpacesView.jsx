@@ -10,7 +10,7 @@ import {
   FolderPlus,
   Image as ImageIcon,
   Sliders,
-  Volume2
+  RotateCcw
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 
@@ -33,7 +33,12 @@ export const SpacesView = () => {
   const [newOverlayOpacity, setNewOverlayOpacity] = useState(0.8);
   const [newAssociatedSound, setNewAssociatedSound] = useState('forest');
 
-  // Link Form
+  // Custom Image URL Editor State for Active Space
+  const [customImageUrlInput, setCustomImageUrlInput] = useState('');
+  const [imageError, setImageError] = useState('');
+  const [isValidatingImage, setIsValidatingImage] = useState(false);
+
+  // Link Form State
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
 
@@ -46,6 +51,48 @@ export const SpacesView = () => {
     { label: 'Sunlit Studio', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=2000&q=80', sound: 'cafe' },
     { label: 'Midnight Ocean', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80', sound: 'ocean' },
   ];
+
+  // Async Image Loader Validation Helper (Req #8)
+  const validateAndApplyImageUrl = (urlToTest, spaceToUpdate = activeSpace.id) => {
+    setImageError('');
+    const cleanUrl = urlToTest.trim();
+    if (!cleanUrl) {
+      setImageError('Please enter an image URL.');
+      return;
+    }
+
+    setIsValidatingImage(true);
+    const img = new window.Image();
+    img.src = cleanUrl;
+
+    img.onload = () => {
+      setIsValidatingImage(false);
+      setImageError('');
+      updateSpace(spaceToUpdate, {
+        type: 'image',
+        bg: cleanUrl
+      });
+      setCustomImageUrlInput('');
+    };
+
+    img.onerror = () => {
+      setIsValidatingImage(false);
+      setImageError('Unable to load image from URL. Preserving previous background.');
+    };
+  };
+
+  const handleApplyCustomImageUrl = (e) => {
+    e.preventDefault();
+    validateAndApplyImageUrl(customImageUrlInput);
+  };
+
+  const handleResetSpaceBackground = () => {
+    setImageError('');
+    updateSpace(activeSpace.id, {
+      type: 'image',
+      bg: PRESET_ENVIRONMENTS[0].url
+    });
+  };
 
   const handleCreateSpace = (e) => {
     e.preventDefault();
@@ -84,15 +131,15 @@ export const SpacesView = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn pb-16">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">
-            Work Spaces & Image Environments
+            Work Spaces & Custom Environments
           </h1>
           <p className="text-sm text-neutral-400 mt-1">
-            Build custom atmospheric environments with tailored background images, soundscapes, and notes.
+            Build and customize atmospheric environments with image backgrounds, overlay dimming, and soundscapes.
           </p>
         </div>
 
@@ -167,9 +214,9 @@ export const SpacesView = () => {
         })}
       </div>
 
-      {/* Active Space Detail Panel */}
+      {/* Active Space Customization & Detail Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Space Notes */}
+        {/* Left Column: Space Notes Editor */}
         <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-neutral-800 space-y-4">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
             <div className="flex items-center gap-2 text-emerald-400 font-semibold">
@@ -187,26 +234,71 @@ export const SpacesView = () => {
           />
         </div>
 
-        {/* Right Column: Environment Settings & Resource Links */}
+        {/* Right Column: Custom Image URL Editor & Resource Links */}
         <div className="space-y-6">
-          {/* Opacity Control for Active Space */}
+          {/* REQUIREMENT #8: Custom Image URL Editor for Active Space */}
           <div className="glass-panel rounded-2xl p-6 border border-neutral-800 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
-                <Sliders className="w-4 h-4" />
-                <span className="text-white">Background Overlay Dimming</span>
+                <ImageIcon className="w-4 h-4" />
+                <span className="text-white">Custom Image URL</span>
               </div>
-              <span className="text-xs font-mono text-emerald-400">{Math.round((activeSpace.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8) * 100)}%</span>
+              <button
+                type="button"
+                onClick={handleResetSpaceBackground}
+                className="text-[11px] text-neutral-400 hover:text-emerald-400 flex items-center gap-1 transition-colors"
+                title="Reset to default background"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset
+              </button>
             </div>
-            <input
-              type="range"
-              min="0.2"
-              max="0.95"
-              step="0.05"
-              value={activeSpace.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8}
-              onChange={(e) => updateSpace(activeSpace.id, { overlayOpacity: parseFloat(e.target.value) })}
-              className="w-full accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
-            />
+
+            {/* Error Message Toast */}
+            {imageError && (
+              <div className="p-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-xs font-medium animate-fadeIn">
+                {imageError}
+              </div>
+            )}
+
+            <form onSubmit={handleApplyCustomImageUrl} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Paste Image URL (https://...)"
+                value={customImageUrlInput}
+                onChange={(e) => setCustomImageUrlInput(e.target.value)}
+                className="w-full glass-input rounded-xl px-3 py-2 text-xs"
+              />
+              <button
+                type="submit"
+                disabled={isValidatingImage}
+                className="w-full btn-emerald py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+              >
+                {isValidatingImage ? (
+                  <span>Validating Image URL...</span>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" /> Apply Background Image
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Dimming Slider Control */}
+            <div className="pt-2 border-t border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-neutral-300 font-semibold">Overlay Dimming</span>
+                <span className="font-mono text-emerald-400">{Math.round((activeSpace.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8) * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={activeSpace.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8}
+                onChange={(e) => updateSpace(activeSpace.id, { overlayOpacity: parseFloat(e.target.value) })}
+                className="w-full accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+              />
+            </div>
           </div>
 
           {/* Links Block */}
@@ -376,8 +468,8 @@ export const SpacesView = () => {
                   </label>
                   <input
                     type="range"
-                    min="0.2"
-                    max="0.95"
+                    min="0"
+                    max="1"
                     step="0.05"
                     value={newOverlayOpacity}
                     onChange={(e) => setNewOverlayOpacity(parseFloat(e.target.value))}

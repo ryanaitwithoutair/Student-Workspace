@@ -5,13 +5,15 @@ import {
   Flame, 
   Sparkles,
   Play,
-  Square
+  Square,
+  Sliders
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 
 export const TopBar = () => {
   const { 
     activeSpace, 
+    updateSpace,
     user, 
     activeSoundId, 
     toggleSound, 
@@ -19,8 +21,10 @@ export const TopBar = () => {
     setSoundVolume, 
     isMuted, 
     toggleMute,
-    sessionsCompleted 
+    totalLoggedFocusMinutes
   } = useApp();
+
+  const currentOpacity = activeSpace?.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8;
 
   return (
     <header className="w-full glass-panel border-b border-neutral-800 px-6 py-3.5 flex items-center justify-between z-20">
@@ -39,8 +43,9 @@ export const TopBar = () => {
         </div>
       </div>
 
-      {/* Center: Audio Bar Quick Player */}
-      <div className="hidden lg:flex items-center gap-4 px-4 py-2 rounded-2xl glass-panel border border-neutral-800">
+      {/* Center: Audio Quick Player & Live Background Dimming Slider (Req #4) */}
+      <div className="hidden lg:flex items-center gap-5 px-4 py-2 rounded-2xl glass-panel border border-neutral-800">
+        {/* Audio Player */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => toggleSound(activeSoundId || 'forest')}
@@ -59,9 +64,7 @@ export const TopBar = () => {
           </span>
         </div>
 
-        <div className="h-4 w-[1px] bg-neutral-800"></div>
-
-        {/* Volume & Mute */}
+        {/* Volume */}
         <div className="flex items-center gap-2">
           <button 
             onClick={toggleMute}
@@ -76,17 +79,38 @@ export const TopBar = () => {
             step="0.05"
             value={volume}
             onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-            className="w-20 accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+            className="w-16 accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+            title="Ambient Volume"
           />
+        </div>
+
+        <div className="h-4 w-[1px] bg-neutral-800"></div>
+
+        {/* REQUIREMENT #4: Background Overlay / Dimming Control Slider (0% - 100%) */}
+        <div className="flex items-center gap-2" title="Background Overlay Dimming">
+          <Sliders className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-semibold text-neutral-300">Dimming</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={currentOpacity}
+            onChange={(e) => updateSpace(activeSpace.id, { overlayOpacity: parseFloat(e.target.value) })}
+            className="w-24 accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+          />
+          <span className="text-xs font-mono font-bold text-emerald-400 w-8">
+            {Math.round(currentOpacity * 100)}%
+          </span>
         </div>
       </div>
 
       {/* Right Controls */}
       <div className="flex items-center gap-4">
-        {/* Sessions Completed Counter */}
+        {/* Logged Focus Time Counter */}
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel border border-neutral-800 text-xs font-medium text-neutral-200">
           <Flame className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse" />
-          <span>{sessionsCompleted} Sessions</span>
+          <span>{totalLoggedFocusMinutes} Focus Mins</span>
         </div>
 
         {/* User Profile Avatar */}
