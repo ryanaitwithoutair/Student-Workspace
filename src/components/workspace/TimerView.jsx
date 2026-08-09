@@ -11,7 +11,9 @@ import {
   Clock,
   Eye,
   EyeOff,
-  CheckSquare
+  CheckSquare,
+  Volume2,
+  VolumeX
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { DraggableResizable } from '../common/DraggableResizable';
@@ -37,12 +39,17 @@ export const TimerView = () => {
     toggleTasksWidget,
     isFocusDimmed,
     toggleFocusDimmed,
+    isTimerSoundEnabled,
+    toggleTimerSound,
+    timerSoundVolume,
+    setTimerSoundVolume
   } = useApp();
 
   const { widgetBgStyle } = useWidgetTranslucency();
 
   const [showMenu, setShowMenu] = useState(false);
   const [showCustomPanel, setShowCustomPanel] = useState(false);
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [customInput, setCustomInput] = useState(customMinutes ? customMinutes.toString() : '25');
 
   const formatTime = (seconds) => {
@@ -100,6 +107,7 @@ export const TimerView = () => {
 
   return (
     <div className="relative min-h-[calc(100vh-8rem)] w-full flex flex-col justify-between select-none pb-24 sm:pb-0">
+      {/* Floating Timer Circle */}
       <div className="flex-1 flex justify-center items-center py-6 sm:py-10">
         <DraggableResizable
           storageKey="timer_circle_v3"
@@ -187,8 +195,68 @@ export const TimerView = () => {
         </DraggableResizable>
       </div>
 
-      {/* Bottom-right control bar */}
+      {/* Bottom-Right Floating Action Bar & Panels */}
       <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 flex flex-col items-end gap-2 sm:gap-3 max-w-[calc(100vw-2rem)]">
+        {/* Timer Sound Settings Panel */}
+        {showSoundSettings && (
+          <div 
+            style={widgetBgStyle}
+            className="p-4 rounded-2xl border border-emerald-500/40 shadow-2xl space-y-3 w-full sm:w-64 animate-fadeIn transition-all duration-300 mb-1"
+          >
+            <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> Timer Sound Effects
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSoundSettings(false)}
+                className="text-neutral-400 hover:text-white p-1 rounded-lg"
+                aria-label="Close sound settings"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 pt-1">
+              {/* ON/OFF Toggle */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-neutral-300 font-medium">Chime Sound Effects</span>
+                <button
+                  type="button"
+                  onClick={toggleTimerSound}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                    isTimerSoundEnabled
+                      ? 'bg-emerald-500 text-white border-emerald-400 shadow-md'
+                      : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                  }`}
+                >
+                  {isTimerSoundEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {/* Volume Slider */}
+              {isTimerSoundEnabled && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-neutral-400 font-medium">Effects Volume</span>
+                    <span className="font-mono text-emerald-400">{Math.round(timerSoundVolume * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={timerSoundVolume}
+                    onChange={(e) => setTimerSoundVolume(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Custom Duration Panel */}
         {showCustomPanel && (
           <div 
             style={widgetBgStyle}
@@ -245,6 +313,7 @@ export const TimerView = () => {
           </div>
         )}
 
+        {/* Vertical Popup Menu */}
         {showMenu && (
           <div 
             style={widgetBgStyle}
@@ -275,10 +344,29 @@ export const TimerView = () => {
           </div>
         )}
 
+        {/* Action Bar */}
         <div 
           style={widgetBgStyle}
           className="p-1.5 rounded-full border border-emerald-500/40 shadow-2xl flex items-center gap-1 sm:gap-2 backdrop-blur-xl flex-wrap justify-end"
         >
+          {/* Timer Sound Settings Button */}
+          <button
+            onClick={() => {
+              setShowSoundSettings(!showSoundSettings);
+              setShowCustomPanel(false);
+              setShowMenu(false);
+            }}
+            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+              showSoundSettings || !isTimerSoundEnabled
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30 scale-105'
+                : 'text-neutral-300 hover:bg-neutral-800/80 hover:text-white'
+            }`}
+            aria-label="Timer sound effect settings"
+            title="Timer Sound Effects Settings"
+          >
+            {isTimerSoundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-red-400" />}
+          </button>
+
           {[
             { active: showTasksWidget, toggle: toggleTasksWidget, icon: CheckSquare, label: 'Toggle focus tasks widget' },
             { active: showQuotesWidget, toggle: toggleQuotesWidget, icon: Quote, label: 'Toggle quotes widget' },
@@ -318,6 +406,7 @@ export const TimerView = () => {
             onClick={() => {
               setShowMenu(!showMenu);
               setShowCustomPanel(false);
+              setShowSoundSettings(false);
             }}
             className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
               showMenu || showCustomPanel

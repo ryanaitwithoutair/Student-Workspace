@@ -99,6 +99,62 @@ class SoundEngine {
     return true; // Playing
   }
 
+  // --- Timer Sound Effects --- //
+
+  // Play Timer Start Sound (Short, subtle 2-note ascending chime: 523.25Hz -> 659.25Hz)
+  playTimerStartSound(volume = 0.6, enabled = true) {
+    if (!enabled) return;
+    this.init();
+    const now = this.ctx.currentTime;
+    const notes = [523.25, 659.25];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      const startTime = now + idx * 0.08;
+      const attackVolume = volume * 0.12;
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(attackVolume, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.28);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.3);
+    });
+  }
+
+  // Play Timer End Sound (Clear, pleasant 3-note Solfeggio bell cascade: 528Hz -> 648Hz -> 792Hz)
+  playTimerEndSound(volume = 0.6, enabled = true) {
+    if (!enabled) return;
+    this.init();
+    const now = this.ctx.currentTime;
+    const notes = [528, 648, 792];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      const startTime = now + idx * 0.16;
+      const attackVolume = volume * 0.2;
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(attackVolume, startTime + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 1.2);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(startTime);
+      osc.stop(startTime + 1.25);
+    });
+  }
+
   // --- Ultra-Soothing Audio Generators --- //
 
   createBufferSource(buffer, loop = true) {
@@ -390,25 +446,6 @@ class SoundEngine {
     oscR.start();
 
     this.currentNodes.push(oscL, oscR, gainL, gainR);
-  }
-
-  playChimeNotification() {
-    this.init();
-    const now = this.ctx.currentTime;
-    const notes = [432, 528, 648];
-    notes.forEach((freq, idx) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, now + idx * 0.14);
-      gain.gain.linearRampToValueAtTime(0.08, now + idx * 0.14 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.9);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(now + idx * 0.14);
-      osc.stop(now + idx * 0.14 + 0.95);
-    });
   }
 }
 

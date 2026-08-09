@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
-import { TIMER_DURATIONS, MIN_FOCUS_MINUTES, MAX_CUSTOM_MINUTES } from '../utils/constants';
 
 const AppContext = createContext();
 
@@ -49,7 +48,7 @@ const DEFAULT_SPACES = [
     icon: 'Sun',
     type: 'gradient',
     bg: 'linear-gradient(135deg, #18181b 0%, #27272a 50%, #09090b 100%)',
-    overlayOpacity: 0.75,
+    overlayOpacity: 0.7,
     associatedSound: 'chimes',
     notes: '### Morning Planning\n1. Review calendar tasks\n2. Run 2 x 25min Pomodoro sessions',
     links: []
@@ -122,6 +121,17 @@ const DEFAULT_REMINDERS = [
 ];
 
 export const AppProvider = ({ children }) => {
+  // Toast notifications
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
+  const dismissToast = () => {
+    setToast(null);
+  };
+
   // Auth User
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('evolve_user');
@@ -158,16 +168,31 @@ export const AppProvider = ({ children }) => {
     return localStorage.getItem('evolve_active_space') || 'space-1';
   });
 
-  // Audio state
+  // Ambient Audio state
   const [activeSoundId, setActiveSoundId] = useState(null);
   const [volume, setVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
+
+  // Independent Timer Sound Settings (ON/OFF and Volume)
+  const [isTimerSoundEnabled, setIsTimerSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('evolve_timer_sound_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [timerSoundVolume, setTimerSoundVolume] = useState(() => {
+    const saved = localStorage.getItem('evolve_timer_sound_volume');
+    return saved ? parseFloat(saved) : 0.6;
+  });
 
   // Timer state
   const [timerMode, setTimerMode] = useState('pomodoro');
   const [customMinutes, setCustomMinutes] = useState(25);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  // Ref guards for guaranteed single sound triggers
+  const hasStartedSessionRef = useRef(false);
+  const hasFiredEndSoundRef = useRef(false);
 
   // Focus Stats - Logged Focus Minutes
   const [sessionsCompleted, setSessionsCompleted] = useState(() => {
@@ -189,13 +214,6 @@ export const AppProvider = ({ children }) => {
     const saved = localStorage.getItem('evolve_fav_quotes');
     return saved ? JSON.parse(saved) : [];
   });
-
-  // Toast notifications
-  const [toast, setToast] = useState(null);
-  const showToast = useCallback((message, type = 'success') => {
-    setToast({ message, type, id: Date.now() });
-  }, []);
-  const dismissToast = useCallback(() => setToast(null), []);
 
   // Persistence Sync
   useEffect(() => {
@@ -237,6 +255,14 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('evolve_focus_dimmed', isFocusDimmed.toString());
   }, [isFocusDimmed]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_timer_sound_enabled', isTimerSoundEnabled.toString());
+  }, [isTimerSoundEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_timer_sound_volume', timerSoundVolume.toString());
+  }, [timerSoundVolume]);
 
   // Auth Methods
   const login = (email, password) => {
@@ -347,23 +373,37 @@ export const AppProvider = ({ children }) => {
     setSpaces(spaces.map(s => s.id === spaceId ? { ...s, notes } : s));
   };
 
-  const getSessionDurationMinutes = () => {
-    if (timerMode === 'pomodoro') return TIMER_DURATIONS.pomodoro;
-    if (timerMode === 'shortBreak') return TIMER_DURATIONS.shortBreak;
-    if (timerMode === 'longBreak') return TIMER_DURATIONS.longBreak;
-    return customMinutes || TIMER_DURATIONS.pomodoro;
-  };
-
   // Log Focus Duration
   const logFocusTime = (minutes) => {
     const mins = parseInt(minutes, 10);
-    if (isNaN(mins) || mins < MIN_FOCUS_MINUTES || mins > MAX_CUSTOM_MINUTES) return false;
+    if (isNaN(mins) || mins <= 0) return;
     setSessionsCompleted(prev => prev + 1);
     setTotalLoggedFocusMinutes(prev => prev + mins);
-    return true;
   };
 
-  // Timer Control
+  // Timer Control with Guaranteed Sound Triggers
+  const startTimer = () => {
+    // Play start sound ONLY when a new session begins (not on resuming from pause)
+    if (!hasStartedSessionRef.current) {
+      soundEngine.playTimerStartSound(timerSoundVolume, isTimerSoundEnabled);
+      hasStartedSessionRef.current = true;
+    }
+    hasFiredEndSoundRef.current = false;
+    setIsTimerRunning(true);
+  };
+
+  const pauseTimer = () => {
+    setIsTimerRunning(false);
+    // Pause does NOT play completion sound or reset session start flag
+  };
+
+  const resetTimer = () => {
+    setIsTimerRunning(false);
+    hasStartedSessionRef.current = false;
+    hasFiredEndSoundRef.current = false;
+    changeTimerMode(timerMode);
+  };
+
   useEffect(() => {
     let interval = null;
     if (isTimerRunning && timeLeft > 0) {
@@ -372,31 +412,33 @@ export const AppProvider = ({ children }) => {
       }, 1000);
     } else if (timeLeft === 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      soundEngine.playChimeNotification();
 
-      const completedDuration = getSessionDurationMinutes();
-      const isFocusSession = timerMode === 'pomodoro' || timerMode === 'custom';
-
-      if (isFocusSession) {
-        logFocusTime(completedDuration);
-        showToast(`Focus session complete — ${completedDuration}m logged. Take a break!`);
-      } else {
-        showToast(`${timerMode === 'shortBreak' ? 'Short' : 'Long'} break finished. Ready to focus?`, 'info');
+      // Play completion end sound EXACTLY ONCE via ref guard
+      if (!hasFiredEndSoundRef.current) {
+        hasFiredEndSoundRef.current = true;
+        soundEngine.playTimerEndSound(timerSoundVolume, isTimerSoundEnabled);
       }
+
+      hasStartedSessionRef.current = false;
+      
+      const completedDuration = timerMode === 'pomodoro' ? 25 : customMinutes;
+      logFocusTime(completedDuration);
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, timerMode, customMinutes]);
+  }, [isTimerRunning, timeLeft, timerMode, customMinutes, isTimerSoundEnabled, timerSoundVolume]);
 
   const changeTimerMode = (mode, customMins = customMinutes) => {
     setIsTimerRunning(false);
+    hasStartedSessionRef.current = false;
+    hasFiredEndSoundRef.current = false;
     setTimerMode(mode);
     if (mode === 'pomodoro') {
-      setCustomMinutes(TIMER_DURATIONS.pomodoro);
-      setTimeLeft(TIMER_DURATIONS.pomodoro * 60);
+      setCustomMinutes(25);
+      setTimeLeft(25 * 60);
     } else if (mode === 'shortBreak') {
-      setTimeLeft(TIMER_DURATIONS.shortBreak * 60);
+      setTimeLeft(5 * 60);
     } else if (mode === 'longBreak') {
-      setTimeLeft(TIMER_DURATIONS.longBreak * 60);
+      setTimeLeft(15 * 60);
     } else if (mode === 'custom') {
       setCustomMinutes(customMins);
       setTimeLeft(customMins * 60);
@@ -445,6 +487,9 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
+      toast,
+      showToast,
+      dismissToast,
       user,
       login,
       signup,
@@ -476,6 +521,10 @@ export const AppProvider = ({ children }) => {
       setSoundVolume: handleSetVolume,
       isMuted,
       toggleMute: handleToggleMute,
+      isTimerSoundEnabled,
+      toggleTimerSound: () => setIsTimerSoundEnabled(prev => !prev),
+      timerSoundVolume,
+      setTimerSoundVolume: (val) => setTimerSoundVolume(Math.max(0, Math.min(1, val))),
       timerMode,
       changeTimerMode,
       customMinutes,
@@ -483,9 +532,9 @@ export const AppProvider = ({ children }) => {
       timeLeft,
       setTimeLeft,
       isTimerRunning,
-      startTimer: () => setIsTimerRunning(true),
-      pauseTimer: () => setIsTimerRunning(false),
-      resetTimer: () => changeTimerMode(timerMode),
+      startTimer,
+      pauseTimer,
+      resetTimer,
       sessionsCompleted,
       totalLoggedFocusMinutes,
       logFocusTime,
@@ -498,10 +547,7 @@ export const AppProvider = ({ children }) => {
       currentQuote: QUOTES_DATABASE[quoteIndex],
       refreshQuote,
       favoriteQuotes,
-      toggleFavoriteQuote,
-      toast,
-      showToast,
-      dismissToast
+      toggleFavoriteQuote
     }}>
       {children}
     </AppContext.Provider>
