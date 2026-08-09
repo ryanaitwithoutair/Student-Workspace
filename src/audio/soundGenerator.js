@@ -1,4 +1,4 @@
-// Web Audio API Ambient Sound Generator for Evolve Focus Workspace
+// Web Audio API Ambient Sound Generator — Ultra-Soothing Deep-Focus Soundscapes
 
 class SoundEngine {
   constructor() {
@@ -7,7 +7,7 @@ class SoundEngine {
     this.masterGain = null;
     this.currentNodes = [];
     this.intervalId = null;
-    this.volume = 0.7;
+    this.volume = 0.5;
     this.isMuted = false;
   }
 
@@ -27,14 +27,14 @@ class SoundEngine {
   setVolume(val) {
     this.volume = Math.max(0, Math.min(1, val));
     if (this.masterGain && this.ctx && !this.isMuted) {
-      this.masterGain.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.05);
+      this.masterGain.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.08);
     }
   }
 
   toggleMute() {
     this.isMuted = !this.isMuted;
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime, 0.05);
+      this.masterGain.gain.setTargetAtTime(this.isMuted ? 0 : this.volume, this.ctx.currentTime, 0.08);
     }
     return this.isMuted;
   }
@@ -68,38 +68,29 @@ class SoundEngine {
     this.activeSoundId = soundId;
 
     switch (soundId) {
+      case 'rain':
+        this.createWhisperingRain();
+        break;
       case 'ocean':
-        this.createOcean();
+        this.createVelvetOceanTide();
         break;
       case 'river':
-        this.createRiver();
+        this.createQuietMeadowStream();
         break;
       case 'forest':
-        this.createForest();
-        break;
-      case 'rain':
-        this.createRain();
+        this.createWarmForestBreeze();
         break;
       case 'cafe':
-        this.createCafe();
-        break;
-      case 'wind':
-        this.createWind();
+        this.createCozySanctuary();
         break;
       case 'chimes':
-        this.createChimes();
-        break;
-      case 'white-noise':
-        this.createNoise('white');
+        this.createZenSingingBowls();
         break;
       case 'brown-noise':
-        this.createNoise('brown');
-        break;
-      case 'pink-noise':
-        this.createNoise('pink');
+        this.createDeepSubBassBrownNoise();
         break;
       case 'binaural':
-        this.createBinauralBeats();
+        this.createAlphaBinauralBeats();
         break;
       default:
         break;
@@ -108,7 +99,7 @@ class SoundEngine {
     return true; // Playing
   }
 
-  // --- Audio Generators --- //
+  // --- Ultra-Soothing Audio Generators --- //
 
   createBufferSource(buffer, loop = true) {
     const source = this.ctx.createBufferSource();
@@ -117,74 +108,85 @@ class SoundEngine {
     return source;
   }
 
-  generateNoiseBuffer(type = 'white', seconds = 5) {
+  generatePinkNoiseBuffer(seconds = 6) {
     const bufferSize = this.ctx.sampleRate * seconds;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = buffer.getChannelData(0);
 
-    if (type === 'white') {
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-      }
-    } else if (type === 'brown') {
-      let lastOut = 0.0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        output[i] = (lastOut + (0.02 * white)) / 1.02;
-        lastOut = output[i];
-        output[i] *= 3.5; // Gain boost
-      }
-    } else if (type === 'pink') {
-      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179;
-        b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520;
-        b3 = 0.86650 * b3 + white * 0.3104856;
-        b4 = 0.55000 * b4 + white * 0.5329522;
-        b5 = -0.7616 * b5 - white * 0.0168980;
-        output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-        output[i] *= 0.11;
-        b6 = white * 0.115926;
-      }
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+      output[i] *= 0.05; // Ultra soft amplitude
+      b6 = white * 0.115926;
     }
     return buffer;
   }
 
-  createNoise(type) {
-    const buffer = this.generateNoiseBuffer(type, 5);
-    const noise = this.createBufferSource(buffer);
-    
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = type === 'white' ? 4000 : type === 'brown' ? 800 : 3000;
+  generateBrownNoiseBuffer(seconds = 6) {
+    const bufferSize = this.ctx.sampleRate * seconds;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = buffer.getChannelData(0);
 
-    noise.connect(filter);
-    filter.connect(this.masterGain);
-    noise.start();
-
-    this.currentNodes.push(noise, filter);
+    let lastOut = 0.0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = output[i];
+      output[i] *= 1.2; // Soft warm rumble
+    }
+    return buffer;
   }
 
-  createOcean() {
-    const buffer = this.generateNoiseBuffer('pink', 6);
+  // 1. Whispering Rain (Deep, warm rain without harsh high frequencies)
+  createWhisperingRain() {
+    const buffer = this.generatePinkNoiseBuffer(6);
+    const noise = this.createBufferSource(buffer);
+
+    const lowpass1 = this.ctx.createBiquadFilter();
+    lowpass1.type = 'lowpass';
+    lowpass1.frequency.value = 380;
+
+    const lowpass2 = this.ctx.createBiquadFilter();
+    lowpass2.type = 'lowpass';
+    lowpass2.frequency.value = 650;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.22;
+
+    noise.connect(lowpass1);
+    lowpass1.connect(lowpass2);
+    lowpass2.connect(gain);
+    gain.connect(this.masterGain);
+
+    noise.start();
+    this.currentNodes.push(noise, lowpass1, lowpass2, gain);
+  }
+
+  // 2. Velvet Ocean Tide (Deep low-frequency tide with 14s swell cycle)
+  createVelvetOceanTide() {
+    const buffer = this.generatePinkNoiseBuffer(6);
     const noise = this.createBufferSource(buffer);
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 350;
+    filter.frequency.value = 220;
 
     const swellGain = this.ctx.createGain();
-    swellGain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+    swellGain.gain.setValueAtTime(0.1, this.ctx.currentTime);
 
-    // LFO for wave modulation
     const lfo = this.ctx.createOscillator();
     lfo.type = 'sine';
-    lfo.frequency.value = 0.12; // Wave period ~8s
+    lfo.frequency.value = 0.07; // Slow 14s wave swell
 
     const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 0.3;
+    lfoGain.gain.value = 0.12;
 
     lfo.connect(lfoGain);
     lfoGain.connect(swellGain.gain);
@@ -199,21 +201,22 @@ class SoundEngine {
     this.currentNodes.push(noise, filter, swellGain, lfo, lfoGain);
   }
 
-  createRiver() {
-    const buffer = this.generateNoiseBuffer('pink', 5);
+  // 3. Quiet Meadow Stream (Warm babbling brook filtered at low frequencies)
+  createQuietMeadowStream() {
+    const buffer = this.generatePinkNoiseBuffer(6);
     const noise = this.createBufferSource(buffer);
 
     const bandpass = this.ctx.createBiquadFilter();
     bandpass.type = 'bandpass';
-    bandpass.frequency.value = 900;
-    bandpass.Q.value = 1.2;
+    bandpass.frequency.value = 450;
+    bandpass.Q.value = 0.8;
 
     const lowpass = this.ctx.createBiquadFilter();
     lowpass.type = 'lowpass';
-    lowpass.frequency.value = 2200;
+    lowpass.frequency.value = 900;
 
     const gain = this.ctx.createGain();
-    gain.gain.value = 0.45;
+    gain.gain.value = 0.25;
 
     noise.connect(bandpass);
     bandpass.connect(lowpass);
@@ -224,17 +227,17 @@ class SoundEngine {
     this.currentNodes.push(noise, bandpass, lowpass, gain);
   }
 
-  createForest() {
-    // Gentle wind backdrop
-    const buffer = this.generateNoiseBuffer('pink', 5);
+  // 4. Warm Forest Breeze (Deep canopy breeze with soft 432Hz bird whispers)
+  createWarmForestBreeze() {
+    const buffer = this.generatePinkNoiseBuffer(6);
     const wind = this.createBufferSource(buffer);
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 600;
+    filter.frequency.value = 280;
 
     const windGain = this.ctx.createGain();
-    windGain.gain.value = 0.25;
+    windGain.gain.value = 0.15;
 
     wind.connect(filter);
     filter.connect(windGain);
@@ -243,74 +246,46 @@ class SoundEngine {
 
     this.currentNodes.push(wind, filter, windGain);
 
-    // Occasional bird chirp synthesis
-    const triggerBirdChirp = () => {
+    // Soft 432Hz sine bird whisper
+    const triggerBirdWhisper = () => {
       if (this.activeSoundId !== 'forest') return;
-      
       const osc = this.ctx.createOscillator();
       const chirpGain = this.ctx.createGain();
-
-      const startFreq = 2200 + Math.random() * 800;
       const now = this.ctx.currentTime;
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(startFreq, now);
-      osc.frequency.exponentialRampToValueAtTime(startFreq + 1200, now + 0.08);
-      osc.frequency.exponentialRampToValueAtTime(startFreq - 300, now + 0.15);
+      osc.frequency.setValueAtTime(432, now);
+      osc.frequency.exponentialRampToValueAtTime(576, now + 0.2);
 
       chirpGain.gain.setValueAtTime(0, now);
-      chirpGain.gain.linearRampToValueAtTime(0.08, now + 0.02);
-      chirpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      chirpGain.gain.linearRampToValueAtTime(0.02, now + 0.05);
+      chirpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
 
       osc.connect(chirpGain);
       chirpGain.connect(this.masterGain);
 
       osc.start(now);
-      osc.stop(now + 0.18);
+      osc.stop(now + 0.36);
     };
 
     this.intervalId = setInterval(() => {
-      if (Math.random() > 0.4) {
-        triggerBirdChirp();
+      if (Math.random() > 0.5) {
+        triggerBirdWhisper();
       }
-    }, 2500);
+    }, 4500);
   }
 
-  createRain() {
-    const buffer = this.generateNoiseBuffer('pink', 5);
-    const noise = this.createBufferSource(buffer);
-
-    const highpass = this.ctx.createBiquadFilter();
-    highpass.type = 'highpass';
-    highpass.frequency.value = 600;
-
-    const lowpass = this.ctx.createBiquadFilter();
-    lowpass.type = 'lowpass';
-    lowpass.frequency.value = 4500;
-
-    const rainGain = this.ctx.createGain();
-    rainGain.gain.value = 0.4;
-
-    noise.connect(highpass);
-    highpass.connect(lowpass);
-    lowpass.connect(rainGain);
-    rainGain.connect(this.masterGain);
-
-    noise.start();
-    this.currentNodes.push(noise, highpass, lowpass, rainGain);
-  }
-
-  createCafe() {
-    const buffer = this.generateNoiseBuffer('brown', 5);
+  // 5. Cozy Sanctuary (Subtle low-end warmth)
+  createCozySanctuary() {
+    const buffer = this.generateBrownNoiseBuffer(6);
     const noise = this.createBufferSource(buffer);
 
     const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 500;
-    filter.Q.value = 0.8;
+    filter.type = 'lowpass';
+    filter.frequency.value = 220;
 
     const gain = this.ctx.createGain();
-    gain.gain.value = 0.4;
+    gain.gain.value = 0.22;
 
     noise.connect(filter);
     filter.connect(gain);
@@ -320,42 +295,11 @@ class SoundEngine {
     this.currentNodes.push(noise, filter, gain);
   }
 
-  createWind() {
-    const buffer = this.generateNoiseBuffer('white', 6);
-    const noise = this.createBufferSource(buffer);
+  // 6. Zen Singing Bowls (432Hz & 528Hz Solfeggio Tibetan harmonics)
+  createZenSingingBowls() {
+    const notes = [216, 432, 528, 648]; // Solfeggio harmonics
 
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 300;
-    filter.Q.value = 3.0;
-
-    const lfo = this.ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.2; // Slow wind frequency shift
-
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 250; // Shift range
-
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-
-    const gain = this.ctx.createGain();
-    gain.gain.value = 0.5;
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain);
-
-    lfo.start();
-    noise.start();
-
-    this.currentNodes.push(noise, filter, lfo, lfoGain, gain);
-  }
-
-  createChimes() {
-    const notes = [523.25, 659.25, 783.99, 987.77, 1046.50, 1318.51]; // C pentatonic
-
-    const triggerChime = () => {
+    const triggerSingingBowl = () => {
       if (this.activeSoundId !== 'chimes') return;
       const freq = notes[Math.floor(Math.random() * notes.length)];
       const now = this.ctx.currentTime;
@@ -367,28 +311,48 @@ class SoundEngine {
       osc.frequency.setValueAtTime(freq, now);
 
       gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.12, now + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.5);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 5.5);
 
       osc.connect(gain);
       gain.connect(this.masterGain);
 
       osc.start(now);
-      osc.stop(now + 3.6);
+      osc.stop(now + 5.6);
     };
 
-    triggerChime();
+    triggerSingingBowl();
     this.intervalId = setInterval(() => {
       if (Math.random() > 0.3) {
-        triggerChime();
+        triggerSingingBowl();
       }
-    }, 2000);
+    }, 4000);
   }
 
-  createBinauralBeats() {
-    // 40Hz Gamma focus beat on 200Hz carrier tone
-    const carrier = 200;
-    const beat = 40;
+  // 7. Deep Sub-Bass Brown Noise (Masking high frequencies with warm sub-rumble)
+  createDeepSubBassBrownNoise() {
+    const buffer = this.generateBrownNoiseBuffer(6);
+    const noise = this.createBufferSource(buffer);
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 160;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.3;
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+
+    noise.start();
+    this.currentNodes.push(noise, filter, gain);
+  }
+
+  // 8. Alpha Relaxation Binaural Beats (136.1Hz Om carrier + 8Hz Alpha beat)
+  createAlphaBinauralBeats() {
+    const carrier = 136.1; // Om tuning
+    const beat = 8; // 8Hz Alpha relaxation
 
     const oscL = this.ctx.createOscillator();
     const oscR = this.ctx.createOscillator();
@@ -403,8 +367,8 @@ class SoundEngine {
     const pannerR = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
 
     if (pannerL && pannerR) {
-      pannerL.pan.value = -1;
-      pannerR.pan.value = 1;
+      pannerL.pan.value = -0.8;
+      pannerR.pan.value = 0.8;
 
       oscL.connect(pannerL);
       oscR.connect(pannerR);
@@ -419,8 +383,8 @@ class SoundEngine {
 
     const gainL = this.ctx.createGain();
     const gainR = this.ctx.createGain();
-    gainL.gain.value = 0.25;
-    gainR.gain.value = 0.25;
+    gainL.gain.value = 0.12;
+    gainR.gain.value = 0.12;
 
     oscL.start();
     oscR.start();
@@ -431,19 +395,19 @@ class SoundEngine {
   playChimeNotification() {
     this.init();
     const now = this.ctx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.50];
+    const notes = [432, 528, 648];
     notes.forEach((freq, idx) => {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = 'sine';
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, now + idx * 0.12);
-      gain.gain.linearRampToValueAtTime(0.15, now + idx * 0.12 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.8);
+      gain.gain.setValueAtTime(0, now + idx * 0.14);
+      gain.gain.linearRampToValueAtTime(0.08, now + idx * 0.14 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.9);
       osc.connect(gain);
       gain.connect(this.masterGain);
-      osc.start(now + idx * 0.12);
-      osc.stop(now + idx * 0.12 + 0.85);
+      osc.start(now + idx * 0.14);
+      osc.stop(now + idx * 0.14 + 0.95);
     });
   }
 }

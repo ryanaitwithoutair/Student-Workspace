@@ -14,6 +14,7 @@ import {
   Check
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
+import { formatTime12h, toTimeInputValue } from '../../utils/timeFormat';
 
 export const CalendarView = () => {
   const { reminders, addReminder, updateReminder, toggleReminder, deleteReminder } = useApp();
@@ -25,7 +26,7 @@ export const CalendarView = () => {
   const [editingReminderId, setEditingReminderId] = useState(null);
   const [formTitle, setFormTitle] = useState('');
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
-  const [formTime, setFormTime] = useState('10:00 AM');
+  const [formTime, setFormTime] = useState('10:00');
   const [formPriority, setFormPriority] = useState('medium');
   const [formNotes, setFormNotes] = useState('');
 
@@ -53,7 +54,7 @@ export const CalendarView = () => {
     setEditingReminderId(null);
     setFormTitle('');
     setFormDate(dateString);
-    setFormTime('10:00 AM');
+    setFormTime('10:00');
     setFormPriority('medium');
     setFormNotes('');
     setShowModal(true);
@@ -63,7 +64,7 @@ export const CalendarView = () => {
     setEditingReminderId(rem.id);
     setFormTitle(rem.title);
     setFormDate(rem.date || new Date().toISOString().split('T')[0]);
-    setFormTime(rem.time || '10:00 AM');
+    setFormTime(toTimeInputValue(rem.time));
     setFormPriority(rem.priority || 'medium');
     setFormNotes(rem.notes || '');
     setShowModal(true);
@@ -71,21 +72,20 @@ export const CalendarView = () => {
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (!formTitle.trim()) {
-      alert('Please enter a title for the focus reminder.');
-      return;
-    }
+    if (!formTitle.trim()) return;
+
+    const displayTime = formatTime12h(formTime);
 
     if (editingReminderId) {
       updateReminder(editingReminderId, {
         title: formTitle.trim(),
         date: formDate,
-        time: formTime.trim(),
+        time: displayTime,
         priority: formPriority,
         notes: formNotes.trim()
       });
     } else {
-      addReminder(formTitle.trim(), formTime.trim(), formPriority, formDate, formNotes.trim());
+      addReminder(formTitle.trim(), displayTime, formPriority, formDate, formNotes.trim());
     }
 
     setShowModal(false);
@@ -369,10 +369,11 @@ export const CalendarView = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-1">Time</label>
+                  <label htmlFor="reminder-time" className="block text-xs font-semibold text-neutral-300 mb-1">Reminder Time</label>
                   <input
-                    type="text"
-                    placeholder="10:30 AM"
+                    id="reminder-time"
+                    type="time"
+                    required
                     value={formTime}
                     onChange={(e) => setFormTime(e.target.value)}
                     className="w-full glass-input rounded-xl px-3 py-2 text-xs"

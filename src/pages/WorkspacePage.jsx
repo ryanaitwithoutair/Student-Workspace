@@ -6,52 +6,73 @@ import { SpacesView } from '../components/workspace/SpacesView';
 import { CalendarView } from '../components/workspace/CalendarView';
 import { SoundsView } from '../components/workspace/SoundsView';
 import { TimerView } from '../components/workspace/TimerView';
-import { QuotesView } from '../components/workspace/QuotesView';
+import { QuotesWidget } from '../components/workspace/QuotesWidget';
+import { FlipClockWidget } from '../components/workspace/FlipClockWidget';
+import { TasksWidget } from '../components/workspace/TasksWidget';
+import { getOverlayGradient, getSpaceOverlayOpacity } from '../utils/overlay';
 
 export const WorkspacePage = () => {
-  const { activeTab, activeSpace } = useApp();
+  const { 
+    activeTab, 
+    activeSpace, 
+    showQuotesWidget, 
+    showFlipClockWidget, 
+    showTasksWidget,
+    isFocusDimmed 
+  } = useApp();
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'timer':
+        return <TimerView />;
       case 'spaces':
         return <SpacesView />;
       case 'calendar':
         return <CalendarView />;
       case 'sounds':
         return <SoundsView />;
-      case 'timer':
-        return <TimerView />;
-      case 'quotes':
-        return <QuotesView />;
       default:
-        return <SpacesView />;
+        return <TimerView />;
     }
   };
 
-  const opacity = activeSpace?.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8;
-  const overlayGradient = `linear-gradient(to bottom, rgba(9, 9, 11, ${opacity}), rgba(9, 9, 11, ${Math.min(1, opacity + 0.1)}))`;
+  const overlayGradient = getOverlayGradient(getSpaceOverlayOpacity(activeSpace));
 
   const bgStyle = activeSpace?.type === 'image' 
     ? { backgroundImage: `${overlayGradient}, url(${activeSpace.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: activeSpace?.bg || '#09090b' };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden select-none transition-all duration-500" style={bgStyle}>
-      {/* Collapsible Left Sidebar */}
+    <div 
+      className={`flex h-screen w-screen overflow-hidden select-none transition-all duration-500 relative ${
+        isFocusDimmed ? 'focus-mode-dimmed' : ''
+      }`} 
+      style={bgStyle}
+    >
+      {/* Collapsible Compact Left Sidebar */}
       <Sidebar />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Minimal Top Bar */}
-        <TopBar />
+        {/* TopBar rendered conditionally — hidden strictly for Focus Timer section */}
+        {activeTab !== 'timer' && <TopBar />}
 
         {/* Tab View Container */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-10 relative">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-10 relative">
+          <div className="max-w-7xl mx-auto min-h-full relative">
             {renderTabContent()}
           </div>
         </main>
       </div>
+
+      {/* Floating Quotes Widget */}
+      {showQuotesWidget && <QuotesWidget />}
+
+      {/* Translucent Flip Clock Widget */}
+      {showFlipClockWidget && <FlipClockWidget />}
+
+      {/* Floating Focus Tasks Widget */}
+      {showTasksWidget && <TasksWidget />}
     </div>
   );
 };
