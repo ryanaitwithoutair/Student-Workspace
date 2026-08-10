@@ -32,6 +32,7 @@ export const TimerView = () => {
     totalLoggedFocusMinutes,
     logFocusTime,
     currentQuote,
+    isQuoteLoading,
     refreshQuote,
     favoriteQuotes,
     toggleFavoriteQuote
@@ -94,8 +95,8 @@ export const TimerView = () => {
 
   const handleQuoteRefresh = () => {
     setIsFlipping(true);
+    refreshQuote();
     setTimeout(() => {
-      refreshQuote();
       setIsFlipping(false);
     }, 250);
   };
@@ -282,10 +283,11 @@ export const TimerView = () => {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={handleQuoteRefresh}
-                      className="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors"
+                      disabled={isQuoteLoading}
+                      className={`p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 transition-colors ${isQuoteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title="Next Quote"
                     >
-                      <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isFlipping ? 'animate-spin' : ''}`} />
+                      <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isFlipping || isQuoteLoading ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                       onClick={() => toggleFavoriteQuote(currentQuote)}
