@@ -12,7 +12,6 @@ import {
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { useNavigate } from '../../router/router';
-import { LogFocusModal } from './LogFocusModal';
 
 export const Sidebar = () => {
   const { 
@@ -113,39 +112,9 @@ export const Sidebar = () => {
       {/* Footer Profile & Exit Workspace */}
       <div className="p-3 border-t border-neutral-800/80 space-y-2">
         {/* User Mini Focus Profile */}
-        {!collapsed && (
-          <div className="p-3 rounded-2xl bg-neutral-900/60 border border-neutral-800 flex items-center gap-3 shadow-inner">
-            <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
-              {user?.avatar || '🌿'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-xs font-bold text-white truncate">{user?.name || 'Focus Master'}</h4>
-              <button
-                onClick={() => setShowLogFocus(true)}
-                className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 hover:text-emerald-300 transition-colors mt-0.5"
-                title="Log custom focus time"
-              >
-                <Flame className="w-3 h-3 fill-current text-amber-400" /> {totalLoggedFocusMinutes} mins logged
-              </button>
-            </div>
-          </div>
-        )}
+        
 
-        {collapsed && (
-          <button
-            onClick={() => setShowLogFocus(true)}
-            className="w-full flex items-center justify-center p-3 rounded-2xl text-amber-400 hover:bg-neutral-800/50 transition-all"
-            title={`${totalLoggedFocusMinutes} mins logged — click to log focus time`}
-            aria-label="Log focus time"
-          >
-            <Flame className="w-5 h-5" />
-          </button>
-        )}
-
-        <LogFocusModal
-          isOpen={showLogFocus}
-          onClose={() => setShowLogFocus(false)}
-        />
+       
 
         <button
           onClick={() => {
