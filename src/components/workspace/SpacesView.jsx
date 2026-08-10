@@ -7,12 +7,12 @@ import {
   FileText, 
   Link as LinkIcon, 
   Check, 
-  FolderPlus,
   Image as ImageIcon,
-  Sliders,
-  RotateCcw
+  Sliders
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
+import { getDimmingLabel, getSpaceOverlayOpacity } from '../../utils/overlay';
+import { MIN_BG_VISIBILITY } from '../../utils/constants';
 
 export const SpacesView = () => {
   const { 
@@ -30,13 +30,8 @@ export const SpacesView = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState('');
   const [newSpaceBg, setNewSpaceBg] = useState('');
-  const [newOverlayOpacity, setNewOverlayOpacity] = useState(0.8);
+  const [newOverlayOpacity, setNewOverlayOpacity] = useState(0.75);
   const [newAssociatedSound, setNewAssociatedSound] = useState('forest');
-
-  // Custom Image URL Editor State for Active Space
-  const [customImageUrlInput, setCustomImageUrlInput] = useState('');
-  const [imageError, setImageError] = useState('');
-  const [isValidatingImage, setIsValidatingImage] = useState(false);
 
   // Link Form State
   const [linkTitle, setLinkTitle] = useState('');
@@ -46,53 +41,11 @@ export const SpacesView = () => {
   const PRESET_ENVIRONMENTS = [
     { label: 'Deep Forest', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2000&q=80', sound: 'forest' },
     { label: 'Emerald Canopy', url: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=2000&q=80', sound: 'rain' },
-    { label: 'Misty Alpine', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2000&q=80', sound: 'wind' },
+    { label: 'Misty Alpine', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2000&q=80', sound: 'ocean' },
     { label: 'Serene River', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=2000&q=80', sound: 'river' },
     { label: 'Sunlit Studio', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=2000&q=80', sound: 'cafe' },
     { label: 'Midnight Ocean', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80', sound: 'ocean' },
   ];
-
-  // Async Image Loader Validation Helper (Req #8)
-  const validateAndApplyImageUrl = (urlToTest, spaceToUpdate = activeSpace.id) => {
-    setImageError('');
-    const cleanUrl = urlToTest.trim();
-    if (!cleanUrl) {
-      setImageError('Please enter an image URL.');
-      return;
-    }
-
-    setIsValidatingImage(true);
-    const img = new window.Image();
-    img.src = cleanUrl;
-
-    img.onload = () => {
-      setIsValidatingImage(false);
-      setImageError('');
-      updateSpace(spaceToUpdate, {
-        type: 'image',
-        bg: cleanUrl
-      });
-      setCustomImageUrlInput('');
-    };
-
-    img.onerror = () => {
-      setIsValidatingImage(false);
-      setImageError('Unable to load image from URL. Preserving previous background.');
-    };
-  };
-
-  const handleApplyCustomImageUrl = (e) => {
-    e.preventDefault();
-    validateAndApplyImageUrl(customImageUrlInput);
-  };
-
-  const handleResetSpaceBackground = () => {
-    setImageError('');
-    updateSpace(activeSpace.id, {
-      type: 'image',
-      bg: PRESET_ENVIRONMENTS[0].url
-    });
-  };
 
   const handleCreateSpace = (e) => {
     e.preventDefault();
@@ -101,7 +54,7 @@ export const SpacesView = () => {
       return;
     }
 
-    const bgUrl = newSpaceBg.trim() || PRESET_ENVIRONMENTS[0].url;
+    const bgUrl = newSpaceBg || PRESET_ENVIRONMENTS[0].url;
 
     addSpace({
       name: newSpaceName.trim(),
@@ -139,7 +92,7 @@ export const SpacesView = () => {
             Work Spaces & Custom Environments
           </h1>
           <p className="text-sm text-neutral-400 mt-1">
-            Build and customize atmospheric environments with image backgrounds, overlay dimming, and soundscapes.
+            Tailor atmospheric environments with background presets, overlay dimming, and soundscapes.
           </p>
         </div>
 
@@ -147,7 +100,7 @@ export const SpacesView = () => {
           onClick={() => {
             setNewSpaceName('');
             setNewSpaceBg(PRESET_ENVIRONMENTS[0].url);
-            setNewOverlayOpacity(0.8);
+            setNewOverlayOpacity(0.75);
             setNewAssociatedSound('forest');
             setShowCreateModal(true);
           }}
@@ -214,9 +167,9 @@ export const SpacesView = () => {
         })}
       </div>
 
-      {/* Active Space Customization & Detail Panels */}
+      {/* Active Space Details */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Space Notes Editor */}
+        {/* Left Column: Space Notes */}
         <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-neutral-800 space-y-4">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
             <div className="flex items-center gap-2 text-emerald-400 font-semibold">
@@ -234,71 +187,35 @@ export const SpacesView = () => {
           />
         </div>
 
-        {/* Right Column: Custom Image URL Editor & Resource Links */}
+        {/* Right Column: Overlay Dimming Slider & Resource Links */}
         <div className="space-y-6">
-          {/* REQUIREMENT #8: Custom Image URL Editor for Active Space */}
+          {/* Background Overlay Dimming Control */}
           <div className="glass-panel rounded-2xl p-6 border border-neutral-800 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
-                <ImageIcon className="w-4 h-4" />
-                <span className="text-white">Custom Image URL</span>
+                <Sliders className="w-4 h-4" />
+                <span className="text-white">Background Overlay Dimming</span>
               </div>
-              <button
-                type="button"
-                onClick={handleResetSpaceBackground}
-                className="text-[11px] text-neutral-400 hover:text-emerald-400 flex items-center gap-1 transition-colors"
-                title="Reset to default background"
-              >
-                <RotateCcw className="w-3 h-3" /> Reset
-              </button>
+              <span className="text-xs font-mono text-emerald-400">
+                {getDimmingLabel(getSpaceOverlayOpacity(activeSpace))}
+              </span>
             </div>
-
-            {/* Error Message Toast */}
-            {imageError && (
-              <div className="p-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-xs font-medium animate-fadeIn">
-                {imageError}
-              </div>
-            )}
-
-            <form onSubmit={handleApplyCustomImageUrl} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Paste Image URL (https://...)"
-                value={customImageUrlInput}
-                onChange={(e) => setCustomImageUrlInput(e.target.value)}
-                className="w-full glass-input rounded-xl px-3 py-2 text-xs"
-              />
-              <button
-                type="submit"
-                disabled={isValidatingImage}
-                className="w-full btn-emerald py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
-              >
-                {isValidatingImage ? (
-                  <span>Validating Image URL...</span>
-                ) : (
-                  <>
-                    <Check className="w-3.5 h-3.5" /> Apply Background Image
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Dimming Slider Control */}
-            <div className="pt-2 border-t border-neutral-800 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-300 font-semibold">Overlay Dimming</span>
-                <span className="font-mono text-emerald-400">{Math.round((activeSpace.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8) * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={activeSpace.overlayOpacity !== undefined ? activeSpace.overlayOpacity : 0.8}
-                onChange={(e) => updateSpace(activeSpace.id, { overlayOpacity: parseFloat(e.target.value) })}
-                className="w-full accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
-              />
-            </div>
+            <p className="text-[10px] text-neutral-500 leading-relaxed">
+              Background stays at least {Math.round(MIN_BG_VISIBILITY * 100)}% visible until dimming exceeds that threshold.
+            </p>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={getSpaceOverlayOpacity(activeSpace)}
+              onChange={(e) => updateSpace(activeSpace.id, { overlayOpacity: parseFloat(e.target.value) })}
+              className="range-slider w-full"
+              aria-label="Background overlay dimming"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(getSpaceOverlayOpacity(activeSpace) * 100)}
+            />
           </div>
 
           {/* Links Block */}
@@ -367,13 +284,13 @@ export const SpacesView = () => {
         </div>
       </div>
 
-      {/* Build Custom Image Environment Modal */}
+      {/* Build Custom Environment Modal (REQUIREMENT #4: Custom URL removed) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="glass-panel w-full max-w-lg rounded-2xl p-6 border border-neutral-700 space-y-6 animate-fadeIn shadow-2xl">
             <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-emerald-400" /> Build Custom Image Environment
+                <ImageIcon className="w-5 h-5 text-emerald-400" /> Build Custom Environment
               </h3>
               <button 
                 type="button"
@@ -430,18 +347,6 @@ export const SpacesView = () => {
                 </div>
               </div>
 
-              {/* Custom Image URL */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">Or Custom Image URL</label>
-                <input
-                  type="text"
-                  placeholder="https://images.unsplash.com/..."
-                  value={newSpaceBg}
-                  onChange={(e) => setNewSpaceBg(e.target.value)}
-                  className="w-full glass-input rounded-xl px-4 py-2 text-xs"
-                />
-              </div>
-
               {/* Ambient Audio & Opacity */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -452,19 +357,18 @@ export const SpacesView = () => {
                     className="w-full glass-input rounded-xl px-3 py-2 text-xs"
                   >
                     <option value="forest" className="bg-neutral-900 text-white">Forest Birds</option>
-                    <option value="rain" className="bg-neutral-900 text-white">Rainfall</option>
-                    <option value="ocean" className="bg-neutral-900 text-white">Ocean Waves</option>
-                    <option value="river" className="bg-neutral-900 text-white">River Stream</option>
-                    <option value="cafe" className="bg-neutral-900 text-white">Café Ambience</option>
-                    <option value="wind" className="bg-neutral-900 text-white">Highland Wind</option>
-                    <option value="chimes" className="bg-neutral-900 text-white">Wind Chimes</option>
+                    <option value="rain" className="bg-neutral-900 text-white">Gentle Rain</option>
+                    <option value="ocean" className="bg-neutral-900 text-white">Soft Ocean</option>
+                    <option value="river" className="bg-neutral-900 text-white">Quiet River</option>
+                    <option value="cafe" className="bg-neutral-900 text-white">Gentle Café</option>
+                    <option value="chimes" className="bg-neutral-900 text-white">Subtle Chimes</option>
                     <option value="binaural" className="bg-neutral-900 text-white">Binaural Beats</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                    Dimming: {Math.round(newOverlayOpacity * 100)}%
+                    Dimming: {getDimmingLabel(newOverlayOpacity)}
                   </label>
                   <input
                     type="range"
@@ -473,7 +377,8 @@ export const SpacesView = () => {
                     step="0.05"
                     value={newOverlayOpacity}
                     onChange={(e) => setNewOverlayOpacity(parseFloat(e.target.value))}
-                    className="w-full accent-emerald-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer mt-2"
+                    className="range-slider w-full mt-2"
+                    aria-label="New space overlay dimming"
                   />
                 </div>
               </div>

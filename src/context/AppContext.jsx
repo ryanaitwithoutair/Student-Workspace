@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
 
 const AppContext = createContext();
@@ -25,7 +25,7 @@ const DEFAULT_SPACES = [
     type: 'image',
     bg: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=2000&q=80',
     overlayOpacity: 0.8,
-    associatedSound: 'wind',
+    associatedSound: 'ocean',
     notes: '### Quiet Meditation & Writing\nWrite without editing first. Let ideas flow seamlessly.',
     links: [
       { id: 'l3', title: 'Stanford Neuroscience of Focus', url: 'https://hubermanlab.com' }
@@ -39,7 +39,7 @@ const DEFAULT_SPACES = [
     bg: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=2000&q=80',
     overlayOpacity: 0.85,
     associatedSound: 'rain',
-    notes: '### Late Night Coding Session\nKeep white noise running at 40% and stay focused on single component logic.',
+    notes: '### Late Night Coding Session\nKeep rain noise running at 40% and stay focused on single component logic.',
     links: []
   },
   {
@@ -121,14 +121,43 @@ const DEFAULT_REMINDERS = [
 ];
 
 export const AppProvider = ({ children }) => {
+  // Toast notifications
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
+  const dismissToast = () => {
+    setToast(null);
+  };
+
   // Auth User
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('evolve_user');
     return saved ? JSON.parse(saved) : { name: 'Focus Master', email: 'user@evolve.app', avatar: '🌿' };
   });
 
-  // Active Workspace Tab
-  const [activeTab, setActiveTab] = useState('spaces');
+  // Active Workspace Tab — Focus Timer opens FIRST by default
+  const [activeTab, setActiveTab] = useState('timer');
+
+  // Widget Toggles
+  const [showQuotesWidget, setShowQuotesWidget] = useState(() => {
+    return localStorage.getItem('evolve_show_quotes_widget') === 'true';
+  });
+
+  const [showFlipClockWidget, setShowFlipClockWidget] = useState(() => {
+    return localStorage.getItem('evolve_show_flip_clock') === 'true';
+  });
+
+  const [showTasksWidget, setShowTasksWidget] = useState(() => {
+    return localStorage.getItem('evolve_show_tasks_widget') === 'true';
+  });
+
+  // Global Full-Screen Deep-Focus Dimming Mode
+  const [isFocusDimmed, setIsFocusDimmed] = useState(() => {
+    return localStorage.getItem('evolve_focus_dimmed') === 'true';
+  });
 
   // Spaces
   const [spaces, setSpaces] = useState(() => {
@@ -139,10 +168,21 @@ export const AppProvider = ({ children }) => {
     return localStorage.getItem('evolve_active_space') || 'space-1';
   });
 
-  // Audio state
+  // Ambient Audio state
   const [activeSoundId, setActiveSoundId] = useState(null);
-  const [volume, setVolume] = useState(0.7);
+  const [volume, setVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
+
+  // Independent Timer Sound Settings (ON/OFF and Volume)
+  const [isTimerSoundEnabled, setIsTimerSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('evolve_timer_sound_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [timerSoundVolume, setTimerSoundVolume] = useState(() => {
+    const saved = localStorage.getItem('evolve_timer_sound_volume');
+    return saved ? parseFloat(saved) : 0.6;
+  });
 
   // Timer state
   const [timerMode, setTimerMode] = useState('pomodoro');
@@ -150,7 +190,11 @@ export const AppProvider = ({ children }) => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-  // Focus Stats - Logged Focus Minutes (Not hardcoded 25)
+  // Ref guards for guaranteed single sound triggers
+  const hasStartedSessionRef = useRef(false);
+  const hasFiredEndSoundRef = useRef(false);
+
+  // Focus Stats - Logged Focus Minutes
   const [sessionsCompleted, setSessionsCompleted] = useState(() => {
     return parseInt(localStorage.getItem('evolve_sessions_count') || '0', 10);
   });
@@ -158,7 +202,7 @@ export const AppProvider = ({ children }) => {
     return parseInt(localStorage.getItem('evolve_logged_focus_mins') || '50', 10);
   });
 
-  // Reminders / Calendar
+  // Reminders / Calendar Tasks
   const [reminders, setReminders] = useState(() => {
     const saved = localStorage.getItem('evolve_reminders');
     return saved ? JSON.parse(saved) : DEFAULT_REMINDERS;
@@ -260,6 +304,30 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('evolve_fav_quotes', JSON.stringify(favoriteQuotes));
   }, [favoriteQuotes]);
 
+  useEffect(() => {
+    localStorage.setItem('evolve_show_quotes_widget', showQuotesWidget.toString());
+  }, [showQuotesWidget]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_show_flip_clock', showFlipClockWidget.toString());
+  }, [showFlipClockWidget]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_show_tasks_widget', showTasksWidget.toString());
+  }, [showTasksWidget]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_focus_dimmed', isFocusDimmed.toString());
+  }, [isFocusDimmed]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_timer_sound_enabled', isTimerSoundEnabled.toString());
+  }, [isTimerSoundEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('evolve_timer_sound_volume', timerSoundVolume.toString());
+  }, [timerSoundVolume]);
+
   // Auth Methods
   const login = (email, password) => {
     const name = email.split('@')[0];
@@ -318,12 +386,11 @@ export const AppProvider = ({ children }) => {
   };
 
   const addSpace = (newSpace) => {
-    const isUrl = newSpace.bg && (newSpace.bg.startsWith('http://') || newSpace.bg.startsWith('https://'));
     const created = {
       id: `space-${Date.now()}`,
       name: newSpace.name || 'Custom Focus Space',
       icon: newSpace.icon || 'Sparkles',
-      type: isUrl ? 'image' : (newSpace.type || 'image'),
+      type: newSpace.type || 'image',
       bg: newSpace.bg || 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2000&q=80',
       overlayOpacity: newSpace.overlayOpacity !== undefined ? newSpace.overlayOpacity : 0.8,
       associatedSound: newSpace.associatedSound || 'forest',
@@ -370,7 +437,7 @@ export const AppProvider = ({ children }) => {
     setSpaces(spaces.map(s => s.id === spaceId ? { ...s, notes } : s));
   };
 
-  // Log Focus Duration (Custom Duration dynamically added)
+  // Log Focus Duration
   const logFocusTime = (minutes) => {
     const mins = parseInt(minutes, 10);
     if (isNaN(mins) || mins <= 0) return;
@@ -378,7 +445,29 @@ export const AppProvider = ({ children }) => {
     setTotalLoggedFocusMinutes(prev => prev + mins);
   };
 
-  // Timer Control
+  // Timer Control with Guaranteed Sound Triggers
+  const startTimer = () => {
+    // Play start sound ONLY when a new session begins (not on resuming from pause)
+    if (!hasStartedSessionRef.current) {
+      soundEngine.playTimerStartSound(timerSoundVolume, isTimerSoundEnabled);
+      hasStartedSessionRef.current = true;
+    }
+    hasFiredEndSoundRef.current = false;
+    setIsTimerRunning(true);
+  };
+
+  const pauseTimer = () => {
+    setIsTimerRunning(false);
+    // Pause does NOT play completion sound or reset session start flag
+  };
+
+  const resetTimer = () => {
+    setIsTimerRunning(false);
+    hasStartedSessionRef.current = false;
+    hasFiredEndSoundRef.current = false;
+    changeTimerMode(timerMode);
+  };
+
   useEffect(() => {
     let interval = null;
     if (isTimerRunning && timeLeft > 0) {
@@ -387,21 +476,25 @@ export const AppProvider = ({ children }) => {
       }, 1000);
     } else if (timeLeft === 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      soundEngine.playChimeNotification();
+
+      // Play completion end sound EXACTLY ONCE via ref guard
+      if (!hasFiredEndSoundRef.current) {
+        hasFiredEndSoundRef.current = true;
+        soundEngine.playTimerEndSound(timerSoundVolume, isTimerSoundEnabled);
+      }
+
+      hasStartedSessionRef.current = false;
       
-      // Determine completed duration dynamically
       const completedDuration = timerMode === 'pomodoro' ? 25 : customMinutes;
       logFocusTime(completedDuration);
-
-      if (timerMode === 'pomodoro' || timerMode === 'custom') {
-        alert(`🎉 Focus Session Completed (${completedDuration}m logged)! Take a well-deserved break.`);
-      }
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, timerMode, customMinutes]);
+  }, [isTimerRunning, timeLeft, timerMode, customMinutes, isTimerSoundEnabled, timerSoundVolume]);
 
   const changeTimerMode = (mode, customMins = customMinutes) => {
     setIsTimerRunning(false);
+    hasStartedSessionRef.current = false;
+    hasFiredEndSoundRef.current = false;
     setTimerMode(mode);
     if (mode === 'pomodoro') {
       setCustomMinutes(25);
@@ -416,7 +509,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Reminders / Calendar Management
+  // Reminders / Calendar Tasks Management
   const addReminder = (title, time, priority = 'medium', date = new Date().toISOString().split('T')[0], notes = '') => {
     const newRem = {
       id: `rem-${Date.now()}`,
@@ -462,6 +555,9 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
+      toast,
+      showToast,
+      dismissToast,
       user,
       login,
       signup,
@@ -469,6 +565,14 @@ export const AppProvider = ({ children }) => {
       logout,
       activeTab,
       setActiveTab,
+      showQuotesWidget,
+      toggleQuotesWidget: () => setShowQuotesWidget(prev => !prev),
+      showFlipClockWidget,
+      toggleFlipClockWidget: () => setShowFlipClockWidget(prev => !prev),
+      showTasksWidget,
+      toggleTasksWidget: () => setShowTasksWidget(prev => !prev),
+      isFocusDimmed,
+      toggleFocusDimmed: () => setIsFocusDimmed(prev => !prev),
       spaces,
       activeSpace,
       activeSpaceId,
@@ -485,6 +589,10 @@ export const AppProvider = ({ children }) => {
       setSoundVolume: handleSetVolume,
       isMuted,
       toggleMute: handleToggleMute,
+      isTimerSoundEnabled,
+      toggleTimerSound: () => setIsTimerSoundEnabled(prev => !prev),
+      timerSoundVolume,
+      setTimerSoundVolume: (val) => setTimerSoundVolume(Math.max(0, Math.min(1, val))),
       timerMode,
       changeTimerMode,
       customMinutes,
@@ -492,9 +600,9 @@ export const AppProvider = ({ children }) => {
       timeLeft,
       setTimeLeft,
       isTimerRunning,
-      startTimer: () => setIsTimerRunning(true),
-      pauseTimer: () => setIsTimerRunning(false),
-      resetTimer: () => changeTimerMode(timerMode),
+      startTimer,
+      pauseTimer,
+      resetTimer,
       sessionsCompleted,
       totalLoggedFocusMinutes,
       logFocusTime,

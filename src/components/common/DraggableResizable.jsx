@@ -1,21 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 /**
- * DraggableResizable - A lightweight, touch-friendly, viewport-constrained
- * container for floating widgets like the Timer Circle and Daily Quote.
+ * DraggableResizable - A lightweight, touch-friendly, workspace-bounded
+ * container for floating widgets like the Timer Circle and Quotes Widget.
+ * Widgets are movable but NOT resizable to maintain intentional sizes.
  */
 export const DraggableResizable = ({
   children,
   storageKey,
   defaultPosition = { x: 0, y: 0 },
   defaultSize = 320,
-  minSize = 200,
-  maxSize = 520,
-  resizable = true,
+  resizable = false,
   className = '',
   title = ''
 }) => {
-  // Load saved position/size from localStorage
+  // Load saved position from localStorage
   const [position, setPosition] = useState(() => {
     if (!storageKey) return defaultPosition;
     try {
@@ -23,16 +22,6 @@ export const DraggableResizable = ({
       return saved ? JSON.parse(saved) : defaultPosition;
     } catch {
       return defaultPosition;
-    }
-  });
-
-  const [size, setSize] = useState(() => {
-    if (!storageKey) return defaultSize;
-    try {
-      const saved = localStorage.getItem(`evolve_size_${storageKey}`);
-      return saved ? parseInt(saved, 10) : defaultSize;
-    } catch {
-      return defaultSize;
     }
   });
 
@@ -47,26 +36,25 @@ export const DraggableResizable = ({
     }
   }, [position, storageKey]);
 
-  useEffect(() => {
-    if (storageKey) {
-      localStorage.setItem(`evolve_size_${storageKey}`, size.toString());
-    }
-  }, [size, storageKey]);
-
-  // Keep within viewport boundaries
+  // Keep strictly within workspace container boundaries
   const clampPosition = (x, y) => {
-    const margin = 10;
-    const maxX = window.innerWidth - (dragRef.current?.offsetWidth || size) - margin;
-    const maxY = window.innerHeight - (dragRef.current?.offsetHeight || size) - margin;
+    const marginX = 24;
+    const marginY = 80;
+    const elementWidth = dragRef.current?.offsetWidth || defaultSize;
+    const elementHeight = dragRef.current?.offsetHeight || defaultSize;
+
+    const maxX = window.innerWidth - elementWidth - marginX;
+    const maxY = window.innerHeight - elementHeight - marginY;
+
     return {
-      x: Math.max(margin, Math.min(x, Math.max(margin, maxX))),
-      y: Math.max(margin, Math.min(y, Math.max(margin, maxY)))
+      x: Math.max(marginX, Math.min(x, Math.max(marginX, maxX))),
+      y: Math.max(marginY, Math.min(y, Math.max(marginY, maxY)))
     };
   };
 
   // Drag handlers (Mouse & Touch)
   const handleStart = (clientX, clientY, target) => {
-    // Avoid dragging when interacting with form inputs, buttons, sliders, or links
+    // Exclude interactive elements from triggering drag
     if (
       target.closest('button') ||
       target.closest('input') ||
@@ -88,7 +76,7 @@ export const DraggableResizable = ({
   };
 
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return; // Only left mouse button
+    if (e.button !== 0) return; // Only left click
     handleStart(e.clientX, e.clientY, e.target);
   };
 
@@ -140,28 +128,28 @@ export const DraggableResizable = ({
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleEnd);
     };
-  }, [isDragging, size]);
+  }, [isDragging]);
 
-  // Handle window resize to prevent off-screen widgets
+  // Handle window resize to clamp positions
   useEffect(() => {
     const handleResize = () => {
       setPosition((prev) => clampPosition(prev.x, prev.y));
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [size]);
+  }, []);
 
   const style = position.x !== 0 || position.y !== 0
     ? {
         position: 'fixed',
         left: `${position.x}px`,
         top: `${position.y}px`,
-        width: resizable ? `${size}px` : 'auto',
+        width: `${defaultSize}px`,
         zIndex: isDragging ? 50 : 40,
         touchAction: 'none'
       }
     : {
-        width: resizable ? `${size}px` : 'auto',
+        width: `${defaultSize}px`,
         position: 'relative'
       };
 
@@ -176,30 +164,13 @@ export const DraggableResizable = ({
       } ${className}`}
     >
       {/* Drag handle header / indicator */}
-      <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-semibold px-2.5 py-0.5 rounded-full shadow-md pointer-events-none z-10 flex items-center gap-1">
+      <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-neutral-800/90 border border-neutral-700 text-neutral-300 text-[10px] font-semibold px-2.5 py-0.5 rounded-full shadow-md pointer-events-none z-10 flex items-center gap-1 backdrop-blur-md">
         <span>⋮⋮</span>
         <span>Drag Widget</span>
       </div>
 
       {/* Main widget content */}
-      {typeof children === 'function' ? children({ size, isDragging }) : children}
-
-      {/* Resize Controls */}
-      {resizable && (
-        <div className="no-drag mt-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between gap-2 px-4 py-1.5 bg-neutral-900/90 border border-neutral-800 rounded-full text-xs">
-          <span className="text-[10px] text-neutral-400 font-medium">Size</span>
-          <input
-            type="range"
-            min={minSize}
-            max={maxSize}
-            step="10"
-            value={size}
-            onChange={(e) => setSize(parseInt(e.target.value, 10))}
-            className="w-24 accent-emerald-500 h-1 bg-neutral-700 rounded cursor-pointer"
-          />
-          <span className="text-[10px] font-mono text-emerald-400">{size}px</span>
-        </div>
-      )}
+      {typeof children === 'function' ? children({ isDragging }) : children}
     </div>
   );
 };
