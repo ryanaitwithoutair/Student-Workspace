@@ -16,8 +16,7 @@ export function App() {
   const routes = {
     '/': <LandingPage />,
     '/auth': <AuthPage />,
-    '/login': <AuthPage initialSignUp={false} />,
-    '/signup': <AuthPage initialSignUp={true} />,
+    '/login': <AuthPage />,
     '/app': <WorkspacePage />,
     '*': <LandingPage />
   };

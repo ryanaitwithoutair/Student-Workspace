@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
@@ -133,10 +134,21 @@ export const AppProvider = ({ children }) => {
   };
 
   // Auth User
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('evolve_user');
-    return saved ? JSON.parse(saved) : { name: 'Focus Master', email: 'user@evolve.app', avatar: '🌿' };
-  });
+  const [user, setUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Active Workspace Tab — Focus Timer opens FIRST by default
   const [activeTab, setActiveTab] = useState('timer');
@@ -329,28 +341,25 @@ export const AppProvider = ({ children }) => {
   }, [timerSoundVolume]);
 
   // Auth Methods
-  const login = (email, password) => {
-    const name = email.split('@')[0];
-    const newUser = { name: name.charAt(0).toUpperCase() + name.slice(1), email, avatar: '🌱' };
-    setUser(newUser);
-    localStorage.setItem('evolve_user', JSON.stringify(newUser));
+  const login = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      showToast(error.message, 'error');
+      throw error;
+    }
+    return data;
   };
 
-  const signup = (name, email, password) => {
-    const newUser = { name, email, avatar: '🍃' };
-    setUser(newUser);
-    localStorage.setItem('evolve_user', JSON.stringify(newUser));
-  };
-
-  const googleAuth = () => {
-    const newUser = { name: 'Alex Sage', email: 'alex.sage@gmail.com', avatar: '🌲' };
-    setUser(newUser);
-    localStorage.setItem('evolve_user', JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('evolve_user');
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      showToast(error.message, 'error');
+    } else {
+      setUser(null);
+    }
   };
 
   // Audio Control
@@ -559,9 +568,8 @@ export const AppProvider = ({ children }) => {
       showToast,
       dismissToast,
       user,
+      isAuthLoading,
       login,
-      signup,
-      googleAuth,
       logout,
       activeTab,
       setActiveTab,
