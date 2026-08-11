@@ -11,14 +11,14 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const QuotesView = () => {
-  const { currentQuote, refreshQuote, favoriteQuotes, toggleFavoriteQuote } = useApp();
+  const { currentQuote, isQuoteLoading, refreshQuote, favoriteQuotes, toggleFavoriteQuote } = useApp();
   const [copied, setCopied] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
 
   const handleRefresh = () => {
     setIsFlipping(true);
+    refreshQuote();
     setTimeout(() => {
-      refreshQuote();
       setIsFlipping(false);
     }, 250);
   };
@@ -46,7 +46,7 @@ export const QuotesView = () => {
 
       {/* Main Display Quote Card */}
       <div className={`glass-panel rounded-3xl p-10 border border-emerald-400 relative overflow-hidden transition-all duration-300 ${
-        isFlipping ? 'scale-95 opacity-50' : 'scale-100 opacity-100 shadow-2xl shadow-emerald-500/20'
+        isFlipping || isQuoteLoading ? 'scale-95 opacity-50' : 'scale-100 opacity-100 shadow-2xl shadow-emerald-500/20'
       }`}>
         <div className="absolute top-6 left-6 text-emerald-400/15">
           <QuoteIcon className="w-32 h-32 -rotate-12" />
@@ -78,10 +78,11 @@ export const QuotesView = () => {
           <div className="flex items-center justify-center gap-4 pt-6 border-t border-emerald-500/20">
             <button
               onClick={handleRefresh}
-              className="px-6 py-2.5 rounded-xl glass-panel hover:bg-emerald-500/20 text-white transition-colors flex items-center gap-2 text-xs font-bold"
+              disabled={isQuoteLoading}
+              className={`px-6 py-2.5 rounded-xl glass-panel hover:bg-emerald-500/20 text-white transition-colors flex items-center gap-2 text-xs font-bold ${isQuoteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <RotateCw className={`w-4 h-4 text-emerald-400 ${isFlipping ? 'animate-spin' : ''}`} />
-              Next Quote
+              <RotateCw className={`w-4 h-4 text-emerald-400 ${isFlipping || isQuoteLoading ? 'animate-spin' : ''}`} />
+              {isQuoteLoading ? 'Loading...' : 'Next Quote'}
             </button>
 
             <button

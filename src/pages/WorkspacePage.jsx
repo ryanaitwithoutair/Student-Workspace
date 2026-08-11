@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from '../router/router';
 import { Sidebar } from '../components/workspace/Sidebar';
 import { TopBar } from '../components/workspace/TopBar';
 import { SpacesView } from '../components/workspace/SpacesView';
@@ -13,6 +14,8 @@ import { getOverlayGradient, getSpaceOverlayOpacity } from '../utils/overlay';
 
 export const WorkspacePage = () => {
   const { 
+    user,
+    isAuthLoading,
     activeTab, 
     activeSpace, 
     showQuotesWidget, 
@@ -20,6 +23,22 @@ export const WorkspacePage = () => {
     showTasksWidget,
     isFocusDimmed 
   } = useApp();
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthLoading && !user) {
+      navigate('/login');
+    }
+  }, [user, isAuthLoading, navigate]);
+
+  if (isAuthLoading || !user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#09090b]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
 
   const renderTabContent = () => {
     switch (activeTab) {

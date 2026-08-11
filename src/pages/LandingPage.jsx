@@ -57,13 +57,6 @@ export const LandingPage = () => {
               </button>
             ) : (
               <>
-                <button
-                  onClick={() => navigate('/signup')}
-                  className="btn-emerald px-8 py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-3 w-full sm:w-auto shadow-2xl"
-                >
-                  Create Free Account
-                  <ArrowRight className="w-5 h-5" />
-                </button>
 
                 <button
                   onClick={() => navigate('/login')}
@@ -230,13 +223,6 @@ export const LandingPage = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <button
-              onClick={() => navigate('/signup')}
-              className="btn-emerald px-8 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 w-full sm:w-auto shadow-xl"
-            >
-              Go to Sign Up Page
-              <ArrowRight className="w-4 h-4" />
-            </button>
 
             <button
               onClick={() => navigate('/login')}

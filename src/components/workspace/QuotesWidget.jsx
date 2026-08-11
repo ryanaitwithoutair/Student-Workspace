@@ -13,7 +13,8 @@ import { useWidgetTranslucency } from '../../hooks/useWidgetTranslucency';
 
 export const QuotesWidget = () => {
   const { 
-    currentQuote, 
+    currentQuote,
+    isQuoteLoading,
     refreshQuote, 
     favoriteQuotes, 
     toggleFavoriteQuote,
@@ -74,10 +75,11 @@ export const QuotesWidget = () => {
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleQuoteRefresh}
-                  className="p-1.5 rounded-lg bg-neutral-800/80 hover:bg-neutral-700/80 text-neutral-300 transition-colors backdrop-blur-md"
+                  disabled={isQuoteLoading}
+                  className={`p-1.5 rounded-lg bg-neutral-800/80 hover:bg-neutral-700/80 text-neutral-300 transition-colors backdrop-blur-md ${isQuoteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   title="Next Quote"
                 >
-                  <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isFlipping ? 'animate-spin' : ''}`} />
+                  <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isFlipping || isQuoteLoading ? 'animate-spin' : ''}`} />
                 </button>
 
                 <button

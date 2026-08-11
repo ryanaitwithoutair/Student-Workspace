@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
@@ -133,10 +134,21 @@ export const AppProvider = ({ children }) => {
   };
 
   // Auth User
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('evolve_user');
-    return saved ? JSON.parse(saved) : { name: 'Focus Master', email: 'user@evolve.app', avatar: '🌿' };
-  });
+  const [user, setUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Active Workspace Tab — Focus Timer opens FIRST by default
   const [activeTab, setActiveTab] = useState('timer');
@@ -210,6 +222,70 @@ export const AppProvider = ({ children }) => {
 
   // Quotes
   const [quoteIndex, setQuoteIndex] = useState(0);
+  const [dynamicQuote, setDynamicQuote] = useState(null);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+
+  const fetchQuoteFromGroq = async () => {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (!apiKey) return;
+    
+    setIsQuoteLoading(true);
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama3-8b-8192',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a quote generator. Return a JSON object with the following fields: "quote" (the quote text), "author" (the person who said it), "role" (their title/profession), and "category" (a single word describing the theme). Output only valid JSON. IMPORTANT: Every time you are called, provide a completely different, unique quote that you have not provided recently. Be creative and pull from various cultures, time periods, and obscure authors as well as famous ones.'
+            },
+            {
+              role: 'user',
+              content: `Give me an inspirational quote from any theme. (Random entropy: ${Math.random()})`
+            }
+          ],
+          response_format: { type: 'json_object' }
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch quote');
+      
+      const data = await response.json();
+      const content = JSON.parse(data.choices[0].message.content);
+      
+      setDynamicQuote({
+        id: `groq-${Date.now()}`,
+        quote: content.quote,
+        author: content.author,
+        role: content.role,
+        category: content.category
+      });
+    } catch (error) {
+      console.error('Error fetching quote:', error);
+      // Fallback to cycling the local static quotes if the API fails or key is invalid
+      setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
+      setDynamicQuote(null);
+    } finally {
+      setIsQuoteLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuoteFromGroq();
+    
+    // Refresh quote every 1 hour
+    const interval = setInterval(() => {
+      fetchQuoteFromGroq();
+    }, 60 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const [favoriteQuotes, setFavoriteQuotes] = useState(() => {
     const saved = localStorage.getItem('evolve_fav_quotes');
     return saved ? JSON.parse(saved) : [];
@@ -265,28 +341,25 @@ export const AppProvider = ({ children }) => {
   }, [timerSoundVolume]);
 
   // Auth Methods
-  const login = (email, password) => {
-    const name = email.split('@')[0];
-    const newUser = { name: name.charAt(0).toUpperCase() + name.slice(1), email, avatar: '🌱' };
-    setUser(newUser);
-    localStorage.setItem('evolve_user', JSON.stringify(newUser));
+  const login = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      showToast(error.message, 'error');
+      throw error;
+    }
+    return data;
   };
 
-  const signup = (name, email, password) => {
-    const newUser = { name, email, avatar: '🍃' };
-    setUser(newUser);
-    localStorage.setItem('evolve_user', JSON.stringify(newUser));
-  };
-
-  const googleAuth = () => {
-    const newUser = { name: 'Alex Sage', email: 'alex.sage@gmail.com', avatar: '🌲' };
-    setUser(newUser);
-    localStorage.setItem('evolve_user', JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('evolve_user');
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      showToast(error.message, 'error');
+    } else {
+      setUser(null);
+    }
   };
 
   // Audio Control
@@ -473,7 +546,11 @@ export const AppProvider = ({ children }) => {
 
   // Quotes
   const refreshQuote = () => {
-    setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
+    if (import.meta.env.VITE_GROQ_API_KEY) {
+      fetchQuoteFromGroq();
+    } else {
+      setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
+    }
   };
 
   const toggleFavoriteQuote = (quoteObj) => {
@@ -491,9 +568,8 @@ export const AppProvider = ({ children }) => {
       showToast,
       dismissToast,
       user,
+      isAuthLoading,
       login,
-      signup,
-      googleAuth,
       logout,
       activeTab,
       setActiveTab,
@@ -544,7 +620,8 @@ export const AppProvider = ({ children }) => {
       toggleReminder,
       deleteReminder,
       quotes: QUOTES_DATABASE,
-      currentQuote: QUOTES_DATABASE[quoteIndex],
+      currentQuote: dynamicQuote || QUOTES_DATABASE[quoteIndex],
+      isQuoteLoading,
       refreshQuote,
       favoriteQuotes,
       toggleFavoriteQuote
