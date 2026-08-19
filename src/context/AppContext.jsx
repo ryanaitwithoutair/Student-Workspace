@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
-
+import { supabase } from '../lib/supabase';
+import { streakStats, minutesFromSessions, localDateKey } from '../utils/focusData';
 const AppContext = createContext();
 
 const DEFAULT_SPACES = [
