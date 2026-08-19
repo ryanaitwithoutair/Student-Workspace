@@ -15,9 +15,11 @@ import {
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { formatTime12h, toTimeInputValue } from '../../utils/timeFormat';
+import { dayTotals, formatFocusTime } from '../../utils/focusData';
 
 export const CalendarView = () => {
-  const { reminders, addReminder, updateReminder, toggleReminder, deleteReminder } = useApp();
+  const { reminders, addReminder, updateReminder, toggleReminder, deleteReminder, focusSessions, checklists } = useApp();
+  const focusByDay = dayTotals(focusSessions);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateStr, setSelectedDateStr] = useState(() => new Date().toISOString().split('T')[0]);
 
@@ -171,6 +173,7 @@ export const CalendarView = () => {
 
               // Check reminders matching this day
               const dayReminders = reminders.filter(r => r.date === dateStr);
+              const hasFocus = Boolean(focusByDay[dateStr]);
 
               return (
                 <div
@@ -212,6 +215,7 @@ export const CalendarView = () => {
                       )}
                     </div>
                   )}
+                  {hasFocus && <span className="absolute bottom-1.5 right-2 text-[9px] text-emerald-300">{focusByDay[dateStr]}m</span>}
                 </div>
               );
             })}
@@ -238,6 +242,7 @@ export const CalendarView = () => {
               <Plus className="w-4 h-4" />
             </button>
           </div>
+          <div className="rounded-2xl bg-neutral-900/70 border border-neutral-800 p-3 grid grid-cols-3 gap-2 text-center"><div><p className="text-[10px] text-neutral-500 uppercase">Focus</p><p className="text-xs text-white font-bold mt-1">{formatFocusTime(focusByDay[selectedDateStr] || 0)}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Sessions</p><p className="text-xs text-white font-bold mt-1">{focusSessions.filter(s=>s.date===selectedDateStr).length}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Tasks</p><p className="text-xs text-white font-bold mt-1">{checklists.reduce((a,l)=>a+l.tasks.filter(t=>t.completed).length,0)} / {checklists.reduce((a,l)=>a+l.tasks.length,0)}</p></div></div>
 
           {/* List of Reminders for Selected Date */}
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">

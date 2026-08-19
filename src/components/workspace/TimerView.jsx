@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Timer, 
   Play, 
@@ -42,7 +42,14 @@ export const TimerView = () => {
     isTimerSoundEnabled,
     toggleTimerSound,
     timerSoundVolume,
-    setTimerSoundVolume
+    setTimerSoundVolume,
+    timerPreferences,
+    setTimerPreferences,
+    focusSessions,
+    lastCompletedSessionId,
+    setLastCompletedSessionId,
+    updateFocusSession
+    ,toggleMute
   } = useApp();
 
   const { widgetBgStyle } = useWidgetTranslucency();
@@ -50,7 +57,23 @@ export const TimerView = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [showCustomPanel, setShowCustomPanel] = useState(false);
   const [showSoundSettings, setShowSoundSettings] = useState(false);
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
   const [customInput, setCustomInput] = useState(customMinutes ? customMinutes.toString() : '25');
+  const [sessionNote, setSessionNote] = useState('');
+  const completedSession = focusSessions.find((session) => session.id === lastCompletedSessionId);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      const tag = event.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.code === 'Space') { event.preventDefault(); isTimerRunning ? pauseTimer() : startTimer(); }
+      if (event.key.toLowerCase() === 'r') resetTimer();
+      if (event.key.toLowerCase() === 'f') toggleFocusDimmed();
+      if (event.key.toLowerCase() === 'm') toggleMute();
+      if (event.key === 'Escape') { setShowMenu(false); setShowCustomPanel(false); setShowSoundSettings(false); setShowTimerSettings(false); setLastCompletedSessionId(null); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isTimerRunning, startTimer, pauseTimer, resetTimer, toggleFocusDimmed, toggleMute, setLastCompletedSessionId]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -59,9 +82,9 @@ export const TimerView = () => {
   };
 
   const getTotalSeconds = () => {
-    if (timerMode === 'pomodoro') return TIMER_DURATIONS.pomodoro * 60;
-    if (timerMode === 'shortBreak') return TIMER_DURATIONS.shortBreak * 60;
-    if (timerMode === 'longBreak') return TIMER_DURATIONS.longBreak * 60;
+    if (timerMode === 'pomodoro') return timerPreferences.focus * 60;
+    if (timerMode === 'shortBreak') return timerPreferences.shortBreak * 60;
+    if (timerMode === 'longBreak') return timerPreferences.longBreak * 60;
     return (customMinutes || TIMER_DURATIONS.pomodoro) * 60;
   };
 
@@ -197,6 +220,8 @@ export const TimerView = () => {
 
       {/* Bottom-Right Floating Action Bar & Panels */}
       <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 flex flex-col items-end gap-2 sm:gap-3 max-w-[calc(100vw-2rem)]">
+        {completedSession && <div style={widgetBgStyle} className="p-4 rounded-2xl border border-emerald-500/40 shadow-2xl w-full sm:w-72 space-y-3"><div className="flex justify-between gap-3"><div><p className="text-xs font-bold text-white">Session saved</p><p className="text-[11px] text-neutral-400">How focused were you? Optional.</p></div><button onClick={() => setLastCompletedSessionId(null)} className="text-neutral-400"><X className="w-4 h-4"/></button></div><div className="flex gap-1">{[1,2,3,4,5].map((rating) => <button key={rating} onClick={() => updateFocusSession(completedSession.id,{quality:rating})} className={`text-lg ${completedSession.quality >= rating ? 'text-amber-400' : 'text-neutral-600'}`} aria-label={`${rating} stars`}>★</button>)}</div><input value={sessionNote} onChange={e=>setSessionNote(e.target.value)} onKeyDown={e => { if(e.key === 'Enter'){ updateFocusSession(completedSession.id,{note:sessionNote.trim()}); setLastCompletedSessionId(null); } }} placeholder="What did you work on?" className="glass-input w-full px-3 py-2 rounded-xl text-xs"/><button onClick={() => { updateFocusSession(completedSession.id,{note:sessionNote.trim()}); setSessionNote(''); setLastCompletedSessionId(null); }} className="text-xs text-emerald-400 font-bold">Save note</button></div>}
+        {showTimerSettings && <div style={widgetBgStyle} className="p-4 rounded-2xl border border-emerald-500/40 shadow-2xl space-y-3 w-full sm:w-64"><div className="flex items-center justify-between"><span className="text-xs font-bold text-white">Timer preferences</span><button onClick={() => setShowTimerSettings(false)} className="text-neutral-400"><X className="w-4 h-4"/></button></div>{[['focus','Focus minutes'],['shortBreak','Short break'],['longBreak','Long break'],['sessionsBeforeLongBreak','Sessions before long break']].map(([key,label]) => <label className="block text-[11px] text-neutral-400" key={key}>{label}<input type="number" min="1" max="360" value={timerPreferences[key]} onChange={(e) => setTimerPreferences((previous) => ({...previous,[key]:Math.max(1, Number(e.target.value) || 1)}))} className="glass-input mt-1 w-full px-2 py-1.5 rounded-lg text-xs"/></label>)}</div>}
         {/* Timer Sound Settings Panel */}
         {showSoundSettings && (
           <div 
@@ -322,9 +347,9 @@ export const TimerView = () => {
             aria-label="Timer modes"
           >
             {[
-              { mode: 'pomodoro', label: 'Pomodoro', duration: `${TIMER_DURATIONS.pomodoro}m` },
-              { mode: 'shortBreak', label: 'Short Break', duration: `${TIMER_DURATIONS.shortBreak}m` },
-              { mode: 'longBreak', label: 'Long Break', duration: `${TIMER_DURATIONS.longBreak}m` },
+              { mode: 'pomodoro', label: 'Focus', duration: `${timerPreferences.focus}m` },
+              { mode: 'shortBreak', label: 'Short Break', duration: `${timerPreferences.shortBreak}m` },
+              { mode: 'longBreak', label: 'Long Break', duration: `${timerPreferences.longBreak}m` },
               { mode: 'custom', label: 'Custom...', duration: `${customMinutes}m` },
             ].map(({ mode, label, duration }) => (
               <button
@@ -366,6 +391,7 @@ export const TimerView = () => {
           >
             {isTimerSoundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-red-400" />}
           </button>
+          <button onClick={() => { setShowTimerSettings(!showTimerSettings); setShowMenu(false); setShowCustomPanel(false); setShowSoundSettings(false); }} className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all ${showTimerSettings ? 'bg-emerald-500 text-white' : 'text-neutral-300 hover:bg-neutral-800/80'}`} aria-label="Timer preferences"><Sliders className="w-4 h-4"/></button>
 
           {[
             { active: showTasksWidget, toggle: toggleTasksWidget, icon: CheckSquare, label: 'Toggle focus tasks widget' },

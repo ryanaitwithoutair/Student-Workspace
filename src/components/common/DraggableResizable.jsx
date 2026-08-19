@@ -141,7 +141,9 @@ export const DraggableResizable = ({
 
   const style = position.x !== 0 || position.y !== 0
     ? {
-        position: 'fixed',
+        // Widgets are mounted only inside the Focus workspace and are positioned
+        // against its relative canvas, never the application viewport.
+        position: 'absolute',
         left: `${position.x}px`,
         top: `${position.y}px`,
         width: `${defaultSize}px`,

@@ -8,7 +8,7 @@ import {
   ChevronRight, 
   Leaf,
   LogOut,
-  Flame
+  CheckSquare, Activity
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { useNavigate } from '../../router/router';
@@ -20,17 +20,17 @@ export const Sidebar = () => {
     activeSoundId, 
     isMuted, 
     logout,
-    user,
-    totalLoggedFocusMinutes 
+    
   } = useApp();
   const [collapsed, setCollapsed] = useState(false);
-  const [showLogFocus, setShowLogFocus] = useState(false);
   const navigate = useNavigate();
 
   const navItems = [
     { id: 'timer', label: 'Focus Timer', icon: Timer },
     { id: 'spaces', label: 'Spaces', icon: LayoutGrid },
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+    { id: 'checklists', label: 'Checklists', icon: CheckSquare },
+    { id: 'analytics', label: 'Analytics', icon: Activity },
     { id: 'sounds', label: 'Sounds', icon: Volume2 },
   ];
 

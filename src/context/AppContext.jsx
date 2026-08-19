@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
+import { localDateKey, minutesFromSessions, streakStats } from '../utils/focusData';
 
 const AppContext = createContext();
 
@@ -120,6 +121,16 @@ const DEFAULT_REMINDERS = [
   { id: 'r3', title: 'Evening Hydration & Mind Reset', time: '05:30 PM', date: new Date().toISOString().split('T')[0], completed: false, priority: 'low', notes: '15m walk' }
 ];
 
+const ACHIEVEMENTS = [
+  { id: 'first', label: 'First Focus Session', type: 'sessions', target: 1 }, { id: 'focus-5', label: '5 Hours Focused', type: 'minutes', target: 300 },
+  { id: 'focus-10', label: '10 Hours Focused', type: 'minutes', target: 600 }, { id: 'focus-25', label: '25 Hours Focused', type: 'minutes', target: 1500 },
+  { id: 'focus-50', label: '50 Hours Focused', type: 'minutes', target: 3000 }, { id: 'focus-100', label: '100 Hours Focused', type: 'minutes', target: 6000 },
+  ...[10, 25, 50, 100].map((target) => ({ id: `sessions-${target}`, label: `${target} Sessions`, type: 'sessions', target })),
+  ...[3, 7, 14, 30].map((target) => ({ id: `streak-${target}`, label: `${target} Day Streak`, type: 'streak', target })),
+  ...[60, 120, 180].map((target) => ({ id: `day-${target}`, label: `${target / 60} Hour Focus Day`, type: 'dailyMinutes', target })),
+  { id: 'daily-5', label: '5 Sessions in One Day', type: 'dailySessions', target: 5 },
+];
+
 export const AppProvider = ({ children }) => {
   // Toast notifications
   const [toast, setToast] = useState(null);
@@ -184,28 +195,43 @@ export const AppProvider = ({ children }) => {
     return saved ? parseFloat(saved) : 0.6;
   });
 
-  // Timer state
-  const [timerMode, setTimerMode] = useState('pomodoro');
-  const [customMinutes, setCustomMinutes] = useState(25);
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  // Timer state. The running deadline is persisted so elapsed time is calculated from
+  // timestamps instead of counting intervals (which drifts in background tabs).
+  const [timerPreferences, setTimerPreferences] = useState(() => {
+    const saved = localStorage.getItem('evolve_timer_preferences');
+    return saved ? JSON.parse(saved) : { focus: 25, shortBreak: 5, longBreak: 15, sessionsBeforeLongBreak: 4 };
+  });
+  const [timerMode, setTimerMode] = useState(() => localStorage.getItem('evolve_timer_mode') || 'pomodoro');
+  const [customMinutes, setCustomMinutes] = useState(() => Number(localStorage.getItem('evolve_custom_minutes')) || 25);
+  const [timeLeft, setTimeLeft] = useState(() => Number(localStorage.getItem('evolve_time_left')) || 25 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerEndsAt, setTimerEndsAt] = useState(() => Number(localStorage.getItem('evolve_timer_ends_at')) || null);
 
   // Ref guards for guaranteed single sound triggers
   const hasStartedSessionRef = useRef(false);
   const hasFiredEndSoundRef = useRef(false);
 
-  // Focus Stats - Logged Focus Minutes
-  const [sessionsCompleted, setSessionsCompleted] = useState(() => {
-    return parseInt(localStorage.getItem('evolve_sessions_count') || '0', 10);
+  // Completed session records are the source of truth for streaks and analytics.
+  const [focusSessions, setFocusSessions] = useState(() => {
+    const saved = localStorage.getItem('evolve_focus_sessions');
+    return saved ? JSON.parse(saved) : [];
   });
-  const [totalLoggedFocusMinutes, setTotalLoggedFocusMinutes] = useState(() => {
-    return parseInt(localStorage.getItem('evolve_logged_focus_mins') || '50', 10);
-  });
+  const streak = streakStats(focusSessions);
+  const sessionsCompleted = focusSessions.length;
+  const totalLoggedFocusMinutes = minutesFromSessions(focusSessions);
+  const [achievements, setAchievements] = useState(() => JSON.parse(localStorage.getItem('evolve_achievements') || '{}'));
+  const [dailyGoalMinutes, setDailyGoalMinutes] = useState(() => Number(localStorage.getItem('evolve_daily_goal')) || 180);
+  const [weeklyReflections, setWeeklyReflections] = useState(() => JSON.parse(localStorage.getItem('evolve_weekly_reflections') || '{}'));
+  const [lastCompletedSessionId, setLastCompletedSessionId] = useState(null);
 
   // Reminders / Calendar Tasks
   const [reminders, setReminders] = useState(() => {
     const saved = localStorage.getItem('evolve_reminders');
     return saved ? JSON.parse(saved) : DEFAULT_REMINDERS;
+  });
+  const [checklists, setChecklists] = useState(() => {
+    const saved = localStorage.getItem('evolve_checklists');
+    return saved ? JSON.parse(saved) : [{ id: 'today', name: "Today's Focus", tasks: [] }];
   });
 
   // Quotes
@@ -228,13 +254,25 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('evolve_reminders', JSON.stringify(reminders));
   }, [reminders]);
 
+  useEffect(() => { localStorage.setItem('evolve_focus_sessions', JSON.stringify(focusSessions)); }, [focusSessions]);
+  useEffect(() => { localStorage.setItem('evolve_daily_goal', String(dailyGoalMinutes)); }, [dailyGoalMinutes]);
+  useEffect(() => { localStorage.setItem('evolve_weekly_reflections', JSON.stringify(weeklyReflections)); }, [weeklyReflections]);
+  useEffect(() => { localStorage.setItem('evolve_achievements', JSON.stringify(achievements)); }, [achievements]);
   useEffect(() => {
-    localStorage.setItem('evolve_sessions_count', sessionsCompleted.toString());
-  }, [sessionsCompleted]);
-
-  useEffect(() => {
-    localStorage.setItem('evolve_logged_focus_mins', totalLoggedFocusMinutes.toString());
-  }, [totalLoggedFocusMinutes]);
+    const byDay = focusSessions.reduce((all, session) => { const key = session.date; all[key] = all[key] || []; all[key].push(session); return all; }, {});
+    const unlocked = ACHIEVEMENTS.filter((achievement) => {
+      if (achievement.type === 'sessions') return focusSessions.length >= achievement.target;
+      if (achievement.type === 'minutes') return totalLoggedFocusMinutes >= achievement.target;
+      if (achievement.type === 'streak') return streak.best >= achievement.target;
+      if (achievement.type === 'dailyMinutes') return Object.values(byDay).some((sessions) => minutesFromSessions(sessions) >= achievement.target);
+      return Object.values(byDay).some((sessions) => sessions.length >= achievement.target);
+    });
+    const fresh = unlocked.filter((achievement) => !achievements[achievement.id]);
+    if (fresh.length) { setAchievements((previous) => ({ ...previous, ...Object.fromEntries(fresh.map((item) => [item.id, new Date().toISOString()])) })); showToast(`Achievement unlocked: ${fresh[0].label}`); }
+  }, [focusSessions]);
+  useEffect(() => { localStorage.setItem('evolve_checklists', JSON.stringify(checklists)); }, [checklists]);
+  useEffect(() => { localStorage.setItem('evolve_timer_preferences', JSON.stringify(timerPreferences)); }, [timerPreferences]);
+  useEffect(() => { localStorage.setItem('evolve_timer_mode', timerMode); localStorage.setItem('evolve_custom_minutes', String(customMinutes)); localStorage.setItem('evolve_time_left', String(timeLeft)); localStorage.setItem('evolve_timer_ends_at', String(timerEndsAt || '')); }, [timerMode, customMinutes, timeLeft, timerEndsAt]);
 
   useEffect(() => {
     localStorage.setItem('evolve_fav_quotes', JSON.stringify(favoriteQuotes));
@@ -373,15 +411,25 @@ export const AppProvider = ({ children }) => {
     setSpaces(spaces.map(s => s.id === spaceId ? { ...s, notes } : s));
   };
 
-  // Log Focus Duration
   const logFocusTime = (minutes) => {
-    const mins = parseInt(minutes, 10);
-    if (isNaN(mins) || mins <= 0) return;
-    setSessionsCompleted(prev => prev + 1);
-    setTotalLoggedFocusMinutes(prev => prev + mins);
+    const mins = Math.round(Number(minutes));
+    if (!Number.isFinite(mins) || mins <= 0) return;
+    const completedAt = new Date().toISOString();
+    const id = `focus-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setFocusSessions((previous) => [...previous, { id, minutes: mins, date: localDateKey(), completedAt }]);
+    setLastCompletedSessionId(id);
+    return id;
+  };
+  const updateFocusSession = (id, updates) => setFocusSessions((previous) => previous.map((session) => session.id === id ? { ...session, ...updates } : session));
+
+  const durationForMode = (mode, custom = customMinutes) => {
+    if (mode === 'pomodoro') return timerPreferences.focus;
+    if (mode === 'shortBreak') return timerPreferences.shortBreak;
+    if (mode === 'longBreak') return timerPreferences.longBreak;
+    return custom;
   };
 
-  // Timer Control with Guaranteed Sound Triggers
+  // Timer control with a persisted deadline and single completion guard.
   const startTimer = () => {
     // Play start sound ONLY when a new session begins (not on resuming from pause)
     if (!hasStartedSessionRef.current) {
@@ -389,21 +437,65 @@ export const AppProvider = ({ children }) => {
       hasStartedSessionRef.current = true;
     }
     hasFiredEndSoundRef.current = false;
+    const deadline = Date.now() + timeLeft * 1000;
+    setTimerEndsAt(deadline);
     setIsTimerRunning(true);
   };
 
   const pauseTimer = () => {
+    if (timerEndsAt) setTimeLeft(Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000)));
+    setTimerEndsAt(null);
     setIsTimerRunning(false);
     // Pause does NOT play completion sound or reset session start flag
   };
 
   const resetTimer = () => {
     setIsTimerRunning(false);
+    setTimerEndsAt(null);
     hasStartedSessionRef.current = false;
     hasFiredEndSoundRef.current = false;
     changeTimerMode(timerMode);
   };
 
+  const completeTimer = () => {
+    setTimerEndsAt(null);
+    setTimeLeft(0);
+    setIsTimerRunning(false);
+    if (!hasFiredEndSoundRef.current) {
+      hasFiredEndSoundRef.current = true;
+      soundEngine.playTimerEndSound(timerSoundVolume, isTimerSoundEnabled);
+      if (timerMode === 'pomodoro' || timerMode === 'custom') {
+        logFocusTime(durationForMode(timerMode));
+        const breakMode = (sessionsCompleted + 1) % timerPreferences.sessionsBeforeLongBreak === 0 ? 'longBreak' : 'shortBreak';
+        setTimerMode(breakMode);
+        setTimeLeft(timerPreferences[breakMode] * 60);
+        showToast('Focus session complete — your progress is saved.');
+      } else showToast('Break complete. Ready for your next focus block.');
+    }
+    hasStartedSessionRef.current = false;
+  };
+
+  useEffect(() => {
+    if (!isTimerRunning || !timerEndsAt) return undefined;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) completeTimer();
+    };
+    tick();
+    const interval = window.setInterval(tick, 500);
+    return () => window.clearInterval(interval);
+  }, [isTimerRunning, timerEndsAt, timerMode, timerSoundVolume, isTimerSoundEnabled]);
+
+  useEffect(() => {
+    if (!timerEndsAt) return;
+    const remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
+    if (remaining === 0) completeTimer();
+    else { setTimeLeft(remaining); setIsTimerRunning(true); }
+  }, []);
+
+  /* legacy timer effect removed: background interval countdown was inaccurate */
+  /*
   useEffect(() => {
     let interval = null;
     if (isTimerRunning && timeLeft > 0) {
@@ -425,20 +517,20 @@ export const AppProvider = ({ children }) => {
       logFocusTime(completedDuration);
     }
     return () => clearInterval(interval);
-  }, [isTimerRunning, timeLeft, timerMode, customMinutes, isTimerSoundEnabled, timerSoundVolume]);
+  }, [isTimerRunning, timeLeft, timerMode, customMinutes, isTimerSoundEnabled, timerSoundVolume]); */
 
   const changeTimerMode = (mode, customMins = customMinutes) => {
     setIsTimerRunning(false);
+    setTimerEndsAt(null);
     hasStartedSessionRef.current = false;
     hasFiredEndSoundRef.current = false;
     setTimerMode(mode);
     if (mode === 'pomodoro') {
-      setCustomMinutes(25);
-      setTimeLeft(25 * 60);
+      setTimeLeft(timerPreferences.focus * 60);
     } else if (mode === 'shortBreak') {
-      setTimeLeft(5 * 60);
+      setTimeLeft(timerPreferences.shortBreak * 60);
     } else if (mode === 'longBreak') {
-      setTimeLeft(15 * 60);
+      setTimeLeft(timerPreferences.longBreak * 60);
     } else if (mode === 'custom') {
       setCustomMinutes(customMins);
       setTimeLeft(customMins * 60);
@@ -470,6 +562,16 @@ export const AppProvider = ({ children }) => {
   const deleteReminder = (id) => {
     setReminders(prev => prev.filter(r => r.id !== id));
   };
+
+  const addChecklist = (name) => setChecklists((previous) => [...previous, { id: `list-${Date.now()}`, name: name.trim() || 'New checklist', tasks: [] }]);
+  const updateChecklist = (id, updates) => setChecklists((previous) => previous.map((list) => list.id === id ? { ...list, ...updates } : list));
+  const deleteChecklist = (id) => setChecklists((previous) => previous.length > 1 ? previous.filter((list) => list.id !== id) : previous);
+  const addChecklistTask = (listId, title) => {
+    if (!title.trim()) return;
+    setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: [...list.tasks, { id: `task-${Date.now()}`, title: title.trim(), completed: false }] } : list));
+  };
+  const updateChecklistTask = (listId, taskId, updates) => setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: list.tasks.map((task) => task.id === taskId ? { ...task, ...updates } : task) } : list));
+  const deleteChecklistTask = (listId, taskId) => setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: list.tasks.filter((task) => task.id !== taskId) } : list));
 
   // Quotes
   const refreshQuote = () => {
@@ -527,6 +629,8 @@ export const AppProvider = ({ children }) => {
       setTimerSoundVolume: (val) => setTimerSoundVolume(Math.max(0, Math.min(1, val))),
       timerMode,
       changeTimerMode,
+      timerPreferences,
+      setTimerPreferences,
       customMinutes,
       setCustomMinutes,
       timeLeft,
@@ -537,12 +641,30 @@ export const AppProvider = ({ children }) => {
       resetTimer,
       sessionsCompleted,
       totalLoggedFocusMinutes,
+      focusSessions,
+      updateFocusSession,
+      lastCompletedSessionId,
+      setLastCompletedSessionId,
+      streak,
+      dailyGoalMinutes,
+      setDailyGoalMinutes,
+      weeklyReflections,
+      setWeeklyReflections,
+      achievements,
+      achievementDefinitions: ACHIEVEMENTS,
       logFocusTime,
       reminders,
       addReminder,
       updateReminder,
       toggleReminder,
       deleteReminder,
+      checklists,
+      addChecklist,
+      updateChecklist,
+      deleteChecklist,
+      addChecklistTask,
+      updateChecklistTask,
+      deleteChecklistTask,
       quotes: QUOTES_DATABASE,
       currentQuote: QUOTES_DATABASE[quoteIndex],
       refreshQuote,

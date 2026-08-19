@@ -9,7 +9,11 @@ import { TimerView } from '../components/workspace/TimerView';
 import { QuotesWidget } from '../components/workspace/QuotesWidget';
 import { FlipClockWidget } from '../components/workspace/FlipClockWidget';
 import { TasksWidget } from '../components/workspace/TasksWidget';
-import { getOverlayGradient, getSpaceOverlayOpacity } from '../utils/overlay';
+import { ChecklistsView } from '../components/workspace/ChecklistsView';
+import { ProgressView } from '../components/workspace/ProgressView';
+import { AnalyticsView } from '../components/workspace/AnalyticsView';
+import { WeeklyReviewView } from '../components/workspace/WeeklyReviewView';
+import { getSpaceOverlayOpacity } from '../utils/overlay';
 
 export const WorkspacePage = () => {
   const { 
@@ -31,15 +35,20 @@ export const WorkspacePage = () => {
         return <CalendarView />;
       case 'sounds':
         return <SoundsView />;
+      case 'checklists':
+        return <ChecklistsView />;
+      case 'progress':
+      case 'review':
+        return <AnalyticsView />;
+      case 'analytics':
+        return <AnalyticsView />;
       default:
         return <TimerView />;
     }
   };
 
-  const overlayGradient = getOverlayGradient(getSpaceOverlayOpacity(activeSpace));
-
   const bgStyle = activeSpace?.type === 'image' 
-    ? { backgroundImage: `${overlayGradient}, url(${activeSpace.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    ? { backgroundImage: `url(${activeSpace.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: activeSpace?.bg || '#09090b' };
 
   return (
@@ -49,6 +58,7 @@ export const WorkspacePage = () => {
       }`} 
       style={bgStyle}
     >
+      <div className="absolute inset-0 pointer-events-none transition-opacity duration-300" style={{ background: 'linear-gradient(to bottom, rgba(9,9,11,.18), rgba(9,9,11,.82))', opacity: getSpaceOverlayOpacity(activeSpace) }} />
       {/* Collapsible Compact Left Sidebar */}
       <Sidebar />
 
@@ -66,13 +76,13 @@ export const WorkspacePage = () => {
       </div>
 
       {/* Floating Quotes Widget */}
-      {showQuotesWidget && <QuotesWidget />}
+      {activeTab === 'timer' && showQuotesWidget && <QuotesWidget />}
 
       {/* Translucent Flip Clock Widget */}
-      {showFlipClockWidget && <FlipClockWidget />}
+      {activeTab === 'timer' && showFlipClockWidget && <FlipClockWidget />}
 
       {/* Floating Focus Tasks Widget */}
-      {showTasksWidget && <TasksWidget />}
+      {activeTab === 'timer' && showTasksWidget && <TasksWidget />}
     </div>
   );
 };
