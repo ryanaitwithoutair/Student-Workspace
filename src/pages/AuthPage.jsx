@@ -3,8 +3,9 @@ import { useNavigate, Link } from '../router/router';
 import { Leaf, Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck } from '../components/common/Icons';
 import { useApp } from '../context/AppContext';
 
-export const AuthPage = () => {
-  const { login, user, isAuthLoading } = useApp();
+export const AuthPage = ({ mode = 'login' }) => {
+  const isSignUp = mode === 'signup';
+  const { login, signup, user, isAuthLoading } = useApp();
   const navigate = useNavigate();
 
   // If already logged in, redirect to app
@@ -15,6 +16,7 @@ export const AuthPage = () => {
   }, [user, isAuthLoading, navigate]);
 
   // Form Fields
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,10 +31,26 @@ export const AuthPage = () => {
       setError('Please enter a valid email address.');
       return;
     }
+    if (isSignUp && !name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
 
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
+      if (isSignUp) {
+        const { data } = await signup(name.trim(), email.trim(), password);
+        if (!data.session) {
+          setError('Account created. Check your email to confirm your account, then sign in.');
+          return;
+        }
+      } else {
+        await login(email.trim(), password);
+      }
       navigate('/app');
     } catch (err) {
       setError(err.message || 'Invalid login credentials.');
@@ -58,10 +76,10 @@ export const AuthPage = () => {
 
           <div>
             <h1 id="auth-heading" className="mt-5 text-2xl sm:text-[1.7rem] font-bold text-white tracking-tight">
-              Welcome back to Evolve
+              {isSignUp ? 'Create your Evolve account' : 'Welcome back to Evolve'}
             </h1>
             <p className="text-sm text-neutral-400 mt-2 font-medium">
-              Sign in to access your focus workspace.
+              {isSignUp ? 'Start building a calmer, more focused workspace.' : 'Sign in to access your focus workspace.'}
             </p>
           </div>
         </div>
@@ -75,6 +93,22 @@ export const AuthPage = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5 mt-7">
+          {isSignUp && (
+            <div>
+              <label htmlFor="name" className="block text-sm font-semibold text-neutral-200 mb-2">Name</label>
+              <input
+                id="name"
+                type="text"
+                required
+                autoComplete="name"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full glass-input rounded-xl px-4 py-3 text-sm"
+                disabled={isLoading}
+              />
+            </div>
+          )}
           <div>
             <label htmlFor="email" className="block text-sm font-semibold text-neutral-200 mb-2">Email address</label>
             <div className="relative">
@@ -127,10 +161,17 @@ export const AuthPage = () => {
             disabled={isLoading}
             className="w-full btn-emerald py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Authenticating...' : 'Sign In to Workspace'}
+            {isLoading ? (isSignUp ? 'Creating account...' : 'Authenticating...') : (isSignUp ? 'Create account' : 'Sign in to workspace')}
             {!isLoading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
+
+        <p className="mt-5 text-center text-sm text-neutral-400">
+          {isSignUp ? 'Already have an account?' : 'New to Evolve?'}{' '}
+          <Link to={isSignUp ? '/login' : '/signup'} className="font-semibold text-emerald-400 hover:text-emerald-300">
+            {isSignUp ? 'Sign in' : 'Create an account'}
+          </Link>
+        </p>
 
         {/* Footer text */}
         <div className="flex items-center justify-center gap-1.5 text-xs text-neutral-400 font-medium mt-7 pt-5 border-t border-neutral-800">

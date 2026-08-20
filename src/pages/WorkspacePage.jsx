@@ -11,9 +11,7 @@ import { QuotesWidget } from '../components/workspace/QuotesWidget';
 import { FlipClockWidget } from '../components/workspace/FlipClockWidget';
 import { TasksWidget } from '../components/workspace/TasksWidget';
 import { ChecklistsView } from '../components/workspace/ChecklistsView';
-import { ProgressView } from '../components/workspace/ProgressView';
 import { AnalyticsView } from '../components/workspace/AnalyticsView';
-import { WeeklyReviewView } from '../components/workspace/WeeklyReviewView';
 import { getSpaceOverlayOpacity } from '../utils/overlay';
 
 export const WorkspacePage = () => {

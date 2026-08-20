@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
  * DraggableResizable - A lightweight, touch-friendly, workspace-bounded
@@ -10,9 +10,7 @@ export const DraggableResizable = ({
   storageKey,
   defaultPosition = { x: 0, y: 0 },
   defaultSize = 320,
-  resizable = false,
-  className = '',
-  title = ''
+  className = ''
 }) => {
   // Load saved position from localStorage
   const [position, setPosition] = useState(() => {
@@ -37,7 +35,7 @@ export const DraggableResizable = ({
   }, [position, storageKey]);
 
   // Keep strictly within workspace container boundaries
-  const clampPosition = (x, y) => {
+  const clampPosition = useCallback((x, y) => {
     const marginX = 24;
     const marginY = 80;
     const elementWidth = dragRef.current?.offsetWidth || defaultSize;
@@ -50,7 +48,7 @@ export const DraggableResizable = ({
       x: Math.max(marginX, Math.min(x, Math.max(marginX, maxX))),
       y: Math.max(marginY, Math.min(y, Math.max(marginY, maxY)))
     };
-  };
+  }, [defaultSize]);
 
   // Drag handlers (Mouse & Touch)
   const handleStart = (clientX, clientY, target) => {
@@ -128,7 +126,7 @@ export const DraggableResizable = ({
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleEnd);
     };
-  }, [isDragging]);
+  }, [isDragging, clampPosition]);
 
   // Handle window resize to clamp positions
   useEffect(() => {
@@ -137,7 +135,7 @@ export const DraggableResizable = ({
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [clampPosition]);
 
   const style = position.x !== 0 || position.y !== 0
     ? {

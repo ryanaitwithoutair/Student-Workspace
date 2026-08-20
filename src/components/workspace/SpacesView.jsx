@@ -3,7 +3,6 @@ import {
   Plus, 
   Trash2, 
   ExternalLink, 
-  Sparkles, 
   FileText, 
   Link as LinkIcon, 
   Check, 

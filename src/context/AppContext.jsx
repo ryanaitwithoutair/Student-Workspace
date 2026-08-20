@@ -1,8 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
-import { supabase } from '../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { streakStats, minutesFromSessions, localDateKey } from '../utils/focusData';
 const AppContext = createContext();
+
+const getAuthErrorMessage = (error) => {
+  if (/fetch|network/i.test(error?.message || '')) {
+    return 'Unable to reach Supabase. Verify VITE_SUPABASE_URL in Vercel uses your exact active Project URL.';
+  }
+  return error?.message || 'Unable to sign in. Please try again.';
+};
 
 const DEFAULT_SPACES = [
   {
@@ -145,19 +152,37 @@ export const AppProvider = ({ children }) => {
 
   // Auth User
   const [user, setUser] = useState(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setIsAuthLoading(false);
-    });
+    if (!isSupabaseConfigured) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    const loadSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (isMounted) setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Unable to restore the Supabase session:', error);
+        if (isMounted) setUser(null);
+      } finally {
+        if (isMounted) setIsAuthLoading(false);
+      }
+    };
+
+    void loadSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (isMounted) setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Active Workspace Tab — Focus Timer opens FIRST by default
@@ -247,69 +272,7 @@ export const AppProvider = ({ children }) => {
 
   // Quotes
   const [quoteIndex, setQuoteIndex] = useState(0);
-  const [dynamicQuote, setDynamicQuote] = useState(null);
-  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
-
-  const fetchQuoteFromGroq = async () => {
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey) return;
-    
-    setIsQuoteLoading(true);
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'llama3-8b-8192',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a quote generator. Return a JSON object with the following fields: "quote" (the quote text), "author" (the person who said it), "role" (their title/profession), and "category" (a single word describing the theme). Output only valid JSON. IMPORTANT: Every time you are called, provide a completely different, unique quote that you have not provided recently. Be creative and pull from various cultures, time periods, and obscure authors as well as famous ones.'
-            },
-            {
-              role: 'user',
-              content: `Give me an inspirational quote from any theme. (Random entropy: ${Math.random()})`
-            }
-          ],
-          response_format: { type: 'json_object' }
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch quote');
-      
-      const data = await response.json();
-      const content = JSON.parse(data.choices[0].message.content);
-      
-      setDynamicQuote({
-        id: `groq-${Date.now()}`,
-        quote: content.quote,
-        author: content.author,
-        role: content.role,
-        category: content.category
-      });
-    } catch (error) {
-      console.error('Error fetching quote:', error);
-      // Fallback to cycling the local static quotes if the API fails or key is invalid
-      setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
-      setDynamicQuote(null);
-    } finally {
-      setIsQuoteLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchQuoteFromGroq();
-    
-    // Refresh quote every 1 hour
-    const interval = setInterval(() => {
-      fetchQuoteFromGroq();
-    }, 60 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
+  const isQuoteLoading = false;
 
   const [favoriteQuotes, setFavoriteQuotes] = useState(() => {
     const saved = localStorage.getItem('evolve_fav_quotes');
@@ -379,23 +342,53 @@ export const AppProvider = ({ children }) => {
 
   // Auth Methods
   const login = async (email, password) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured. Add the Supabase environment variables and redeploy.');
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     if (error) {
-      showToast(error.message, 'error');
-      throw error;
+      const authError = new Error(getAuthErrorMessage(error));
+      showToast(authError.message, 'error');
+      throw authError;
+    }
+    return data;
+  };
+
+  const signup = async (name, email, password) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured. Add the Supabase environment variables and redeploy.');
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: name } },
+    });
+    if (error) {
+      const authError = new Error(getAuthErrorMessage(error));
+      showToast(authError.message, 'error');
+      throw authError;
     }
     return data;
   };
 
   const logout = async () => {
+    if (!isSupabaseConfigured) {
+      setUser(null);
+      return true;
+    }
+
     const { error } = await supabase.auth.signOut();
     if (error) {
-      showToast(error.message, 'error');
+      showToast(getAuthErrorMessage(error), 'error');
+      return false;
     } else {
       setUser(null);
+      return true;
     }
   };
 
@@ -647,11 +640,7 @@ export const AppProvider = ({ children }) => {
 
   // Quotes
   const refreshQuote = () => {
-    if (import.meta.env.VITE_GROQ_API_KEY) {
-      fetchQuoteFromGroq();
-    } else {
-      setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
-    }
+    setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
   };
 
   const toggleFavoriteQuote = (quoteObj) => {
@@ -671,6 +660,7 @@ export const AppProvider = ({ children }) => {
       user,
       isAuthLoading,
       login,
+      signup,
       logout,
       activeTab,
       setActiveTab,
@@ -741,7 +731,7 @@ export const AppProvider = ({ children }) => {
       updateChecklistTask,
       deleteChecklistTask,
       quotes: QUOTES_DATABASE,
-      currentQuote: dynamicQuote || QUOTES_DATABASE[quoteIndex],
+      currentQuote: QUOTES_DATABASE[quoteIndex],
       isQuoteLoading,
       refreshQuote,
       favoriteQuotes,

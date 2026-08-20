@@ -48,7 +48,7 @@ class SoundEngine {
       try {
         if (node.stop) node.stop();
         if (node.disconnect) node.disconnect();
-      } catch (e) {
+      } catch {
         // Safe catch for node cleanup
       }
     });

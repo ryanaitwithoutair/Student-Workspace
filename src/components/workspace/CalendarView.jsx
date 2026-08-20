@@ -9,9 +9,7 @@ import {
   ChevronLeft, 
   ChevronRight,
   BellRing,
-  FileText,
-  Tag,
-  Check
+  FileText
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { formatTime12h, toTimeInputValue } from '../../utils/timeFormat';
@@ -166,7 +164,6 @@ export const CalendarView = () => {
             {/* Days */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
-              const dateObj = new Date(year, month, dayNum);
               const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
               const isSelected = dateStr === selectedDateStr;
               const isToday = dateStr === new Date().toISOString().split('T')[0];

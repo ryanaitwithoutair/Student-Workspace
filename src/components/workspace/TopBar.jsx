@@ -11,6 +11,7 @@ export const TopBar = () => {
     user, 
     totalLoggedFocusMinutes
   } = useApp();
+  const displayName = user?.user_metadata?.display_name || user?.name || user?.email?.split('@')[0] || 'Focus Master';
 
   return (
     <header className="w-full glass-panel border-b border-neutral-800 px-6 py-3.5 flex items-center justify-between z-20">
@@ -43,7 +44,7 @@ export const TopBar = () => {
             {user?.avatar || '🌱'}
           </div>
           <span className="hidden sm:inline text-xs font-medium text-neutral-200">
-            {user?.name || 'Focus Master'}
+            {displayName}
           </span>
         </div>
       </div>
