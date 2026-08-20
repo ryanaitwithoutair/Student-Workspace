@@ -60,14 +60,12 @@ export const RouterView = ({ routes }) => {
     return routes[currentPath];
   }
 
-  // Match authentication routes (/auth, /login, /signup)
+  // Match authentication routes (/auth, /login)
   if (
     currentPath === '/auth' || 
     currentPath.startsWith('/auth') || 
     currentPath === '/login' || 
-    currentPath.startsWith('/login') ||
-    currentPath === '/signup' || 
-    currentPath.startsWith('/signup')
+    currentPath.startsWith('/login')
   ) {
     return routes[currentPath] || routes['/auth'];
   }

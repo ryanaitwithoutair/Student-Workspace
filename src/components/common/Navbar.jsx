@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from '../../router/router';
-import { Leaf, ArrowRight, Sparkles } from '../common/Icons';
+import { Leaf, Sparkles } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 
 export const Navbar = () => {
@@ -38,21 +38,12 @@ export const Navbar = () => {
               <Sparkles className="w-4 h-4" />
             </button>
           ) : (
-            <div className="flex items-center gap-2">
-              <Link
-                to="/login"
-                className="text-sm font-semibold text-neutral-300 hover:text-white transition-colors px-3 py-2"
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/signup"
-                className="btn-emerald px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2"
-              >
-                Sign Up
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
+            <Link
+              to="/login"
+              className="btn-emerald px-5 py-2.5 rounded-xl text-sm font-bold"
+            >
+              Sign in
+            </Link>
           )}
         </div>
       </div>

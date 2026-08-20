@@ -17,7 +17,6 @@ export function App() {
     '/': <LandingPage />,
     '/auth': <AuthPage />,
     '/login': <AuthPage />,
-    '/signup': <AuthPage mode="signup" />,
     '/app': <WorkspacePage />,
     '*': <LandingPage />
   };

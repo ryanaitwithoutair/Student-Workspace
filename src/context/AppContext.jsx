@@ -358,24 +358,6 @@ export const AppProvider = ({ children }) => {
     return data;
   };
 
-  const signup = async (name, email, password) => {
-    if (!isSupabaseConfigured) {
-      throw new Error('Authentication is not configured. Add the Supabase environment variables and redeploy.');
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: name } },
-    });
-    if (error) {
-      const authError = new Error(getAuthErrorMessage(error));
-      showToast(authError.message, 'error');
-      throw authError;
-    }
-    return data;
-  };
-
   const logout = async () => {
     if (!isSupabaseConfigured) {
       setUser(null);
@@ -660,7 +642,6 @@ export const AppProvider = ({ children }) => {
       user,
       isAuthLoading,
       login,
-      signup,
       logout,
       activeTab,
       setActiveTab,
