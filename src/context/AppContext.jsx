@@ -2,13 +2,24 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { soundEngine } from '../audio/soundGenerator';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { streakStats, minutesFromSessions, localDateKey } from '../utils/focusData';
+import {
+  clampNumber,
+  isPlainObject,
+  isTrustedBackgroundImageUrl,
+  normalizeHttpsUrl,
+  readLocalJson,
+  readLocalNumber,
+  safeLocalGet,
+  safeLocalSet,
+  truncateText,
+} from '../utils/security';
 const AppContext = createContext();
 
 const getAuthErrorMessage = (error) => {
   if (/fetch|network/i.test(error?.message || '')) {
     return 'Unable to reach Supabase. Verify VITE_SUPABASE_URL in Vercel uses your exact active Project URL.';
   }
-  return error?.message || 'Unable to sign in. Please try again.';
+  return 'Unable to sign in with those credentials.';
 };
 
 const DEFAULT_SPACES = [
@@ -138,6 +149,166 @@ const ACHIEVEMENTS = [
   { id: 'daily-5', label: '5 Sessions in One Day', type: 'dailySessions', target: 5 },
 ];
 
+const DEFAULT_TIMER_PREFERENCES = { focus: 25, shortBreak: 5, longBreak: 15, sessionsBeforeLongBreak: 4 };
+const VALID_TIMER_MODES = new Set(['pomodoro', 'shortBreak', 'longBreak', 'custom']);
+const VALID_SOUNDS = new Set(['forest', 'rain', 'ocean', 'river', 'cafe', 'chimes', 'binaural', 'brown-noise']);
+const VALID_PRIORITIES = new Set(['low', 'medium', 'high']);
+const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const VALID_ID = /^[a-zA-Z0-9_-]{1,128}$/;
+
+const sanitizeId = (value, fallback) => (typeof value === 'string' && VALID_ID.test(value) ? value : fallback);
+const sanitizeDate = (value, fallback) => (typeof value === 'string' && VALID_DATE.test(value) ? value : fallback);
+
+const sanitizeLinks = (links) => {
+  if (!Array.isArray(links)) return [];
+  const ids = new Set();
+  return links.slice(0, 10).reduce((safeLinks, link, index) => {
+    if (!isPlainObject(link)) return safeLinks;
+    const url = normalizeHttpsUrl(link.url);
+    if (!url) return safeLinks;
+    let id = sanitizeId(link.id, `link-import-${index}`);
+    if (ids.has(id)) id = `link-import-${index}`;
+    ids.add(id);
+    safeLinks.push({
+      id,
+      title: truncateText(link.title, 'Untitled link', 120).trim() || 'Untitled link',
+      url,
+    });
+    return safeLinks;
+  }, []);
+};
+
+const sanitizeSpace = (space, index) => {
+  const fallback = DEFAULT_SPACES[index % DEFAULT_SPACES.length];
+  if (!isPlainObject(space)) return { ...fallback, links: [...fallback.links] };
+
+  const imageUrl = isTrustedBackgroundImageUrl(space.bg) ? normalizeHttpsUrl(space.bg) : null;
+  const usesImage = space.type === 'image' && Boolean(imageUrl);
+  return {
+    id: sanitizeId(space.id, `space-import-${index}`),
+    name: truncateText(space.name, fallback.name, 80).trim() || fallback.name,
+    icon: truncateText(space.icon, fallback.icon, 40) || fallback.icon,
+    type: usesImage ? 'image' : fallback.type,
+    bg: usesImage ? imageUrl : fallback.bg,
+    overlayOpacity: clampNumber(space.overlayOpacity, fallback.overlayOpacity, 0, 1),
+    associatedSound: VALID_SOUNDS.has(space.associatedSound) ? space.associatedSound : fallback.associatedSound,
+    notes: truncateText(space.notes, fallback.notes, 2_000),
+    links: sanitizeLinks(space.links),
+  };
+};
+
+const sanitizeSpaces = (spaces) => {
+  if (!Array.isArray(spaces) || !spaces.length) return DEFAULT_SPACES.map((space) => ({ ...space, links: [...space.links] }));
+  const ids = new Set();
+  const safeSpaces = spaces.slice(0, 10).map(sanitizeSpace).filter((space) => {
+    if (ids.has(space.id)) return false;
+    ids.add(space.id);
+    return true;
+  });
+  return safeSpaces.length ? safeSpaces : DEFAULT_SPACES.map((space) => ({ ...space, links: [...space.links] }));
+};
+
+const sanitizeReminder = (reminder, index) => {
+  const fallback = DEFAULT_REMINDERS[index % DEFAULT_REMINDERS.length];
+  if (!isPlainObject(reminder)) return { ...fallback };
+  return {
+    id: sanitizeId(reminder.id, `rem-import-${index}`),
+    title: truncateText(reminder.title, fallback.title, 160).trim() || fallback.title,
+    time: truncateText(reminder.time, fallback.time, 32),
+    date: sanitizeDate(reminder.date, fallback.date),
+    completed: Boolean(reminder.completed),
+    priority: VALID_PRIORITIES.has(reminder.priority) ? reminder.priority : 'medium',
+    notes: truncateText(reminder.notes, '', 1_000),
+  };
+};
+
+const sanitizeReminders = (reminders) => (
+  Array.isArray(reminders) ? reminders.slice(0, 50).map(sanitizeReminder) : DEFAULT_REMINDERS.map((reminder) => ({ ...reminder }))
+);
+
+const sanitizeChecklist = (list, index) => {
+  if (!isPlainObject(list)) return null;
+  const tasks = Array.isArray(list.tasks) ? list.tasks.slice(0, 50).reduce((safeTasks, task, taskIndex) => {
+    if (!isPlainObject(task)) return safeTasks;
+    safeTasks.push({
+      id: sanitizeId(task.id, `task-import-${index}-${taskIndex}`),
+      title: truncateText(task.title, 'Untitled task', 120).trim() || 'Untitled task',
+      completed: Boolean(task.completed),
+    });
+    return safeTasks;
+  }, []) : [];
+  return {
+    id: sanitizeId(list.id, `list-import-${index}`),
+    name: truncateText(list.name, 'New checklist', 80).trim() || 'New checklist',
+    tasks,
+  };
+};
+
+const sanitizeChecklists = (checklists) => {
+  const fallback = [{ id: 'today', name: "Today's Focus", tasks: [] }];
+  if (!Array.isArray(checklists)) return fallback;
+  const safeLists = checklists.slice(0, 10).map(sanitizeChecklist).filter(Boolean);
+  return safeLists.length ? safeLists : fallback;
+};
+
+const sanitizeTimerPreferences = (preferences) => {
+  if (!isPlainObject(preferences)) return DEFAULT_TIMER_PREFERENCES;
+  return {
+    focus: clampNumber(preferences.focus, DEFAULT_TIMER_PREFERENCES.focus, 1, 360),
+    shortBreak: clampNumber(preferences.shortBreak, DEFAULT_TIMER_PREFERENCES.shortBreak, 1, 120),
+    longBreak: clampNumber(preferences.longBreak, DEFAULT_TIMER_PREFERENCES.longBreak, 1, 180),
+    sessionsBeforeLongBreak: clampNumber(preferences.sessionsBeforeLongBreak, DEFAULT_TIMER_PREFERENCES.sessionsBeforeLongBreak, 1, 20),
+  };
+};
+
+const sanitizeFocusSessions = (sessions) => {
+  if (!Array.isArray(sessions)) return [];
+  const ids = new Set();
+  return sessions.slice(-5_000).reduce((safeSessions, session, index) => {
+    if (!isPlainObject(session)) return safeSessions;
+    const id = sanitizeId(session.id, `focus-import-${index}`);
+    if (ids.has(id)) return safeSessions;
+    const minutes = clampNumber(session.minutes, 0, 1, 1_440);
+    const date = sanitizeDate(session.date, '');
+    if (!minutes || !date) return safeSessions;
+    const completedAt = typeof session.completedAt === 'string' ? session.completedAt : session.completed_at;
+    ids.add(id);
+    safeSessions.push({
+      id,
+      minutes,
+      date,
+      completedAt: typeof completedAt === 'string' && completedAt.length <= 64 && Number.isFinite(Date.parse(completedAt)) ? completedAt : undefined,
+    });
+    return safeSessions;
+  }, []);
+};
+
+const sanitizeWeeklyReflections = (reflections) => {
+  if (!isPlainObject(reflections)) return {};
+  return Object.entries(reflections).slice(-26).reduce((safeReflections, [week, reflection]) => {
+    if (!VALID_DATE.test(week) || !isPlainObject(reflection)) return safeReflections;
+    safeReflections[week] = {
+      wentWell: truncateText(reflection.wentWell, '', 500),
+      improve: truncateText(reflection.improve, '', 500),
+    };
+    return safeReflections;
+  }, {});
+};
+
+const sanitizeAchievements = (achievements) => {
+  if (!isPlainObject(achievements)) return {};
+  const validIds = new Set(ACHIEVEMENTS.map((achievement) => achievement.id));
+  return Object.fromEntries(Object.entries(achievements).filter(([id, value]) => (
+    validIds.has(id) && typeof value === 'string' && value.length <= 64
+  )));
+};
+
+const sanitizeFavoriteQuotes = (quotes) => {
+  if (!Array.isArray(quotes)) return [];
+  const ids = new Set(quotes.map((quote) => quote?.id));
+  return QUOTES_DATABASE.filter((quote) => ids.has(quote.id));
+};
+
 export const AppProvider = ({ children }) => {
   // Toast notifications
   const [toast, setToast] = useState(null);
@@ -192,29 +363,28 @@ export const AppProvider = ({ children }) => {
 
   // Widget Toggles
   const [showQuotesWidget, setShowQuotesWidget] = useState(() => {
-    return localStorage.getItem('evolve_show_quotes_widget') === 'true';
+    return safeLocalGet('evolve_show_quotes_widget') === 'true';
   });
 
   const [showFlipClockWidget, setShowFlipClockWidget] = useState(() => {
-    return localStorage.getItem('evolve_show_flip_clock') === 'true';
+    return safeLocalGet('evolve_show_flip_clock') === 'true';
   });
 
   const [showTasksWidget, setShowTasksWidget] = useState(() => {
-    return localStorage.getItem('evolve_show_tasks_widget') === 'true';
+    return safeLocalGet('evolve_show_tasks_widget') === 'true';
   });
 
   // Global Full-Screen Deep-Focus Dimming Mode
   const [isFocusDimmed, setIsFocusDimmed] = useState(() => {
-    return localStorage.getItem('evolve_focus_dimmed') === 'true';
+    return safeLocalGet('evolve_focus_dimmed') === 'true';
   });
 
   // Spaces
   const [spaces, setSpaces] = useState(() => {
-    const saved = localStorage.getItem('evolve_spaces');
-    return saved ? JSON.parse(saved) : DEFAULT_SPACES;
+    return sanitizeSpaces(readLocalJson('evolve_spaces', DEFAULT_SPACES, Array.isArray));
   });
   const [activeSpaceId, setActiveSpaceId] = useState(() => {
-    return localStorage.getItem('evolve_active_space') || 'space-1';
+    return sanitizeId(safeLocalGet('evolve_active_space'), 'space-1');
   });
 
   // Ambient Audio state
@@ -224,26 +394,30 @@ export const AppProvider = ({ children }) => {
 
   // Independent Timer Sound Settings (ON/OFF and Volume)
   const [isTimerSoundEnabled, setIsTimerSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('evolve_timer_sound_enabled');
+    const saved = safeLocalGet('evolve_timer_sound_enabled');
     return saved !== null ? saved === 'true' : true;
   });
 
   const [timerSoundVolume, setTimerSoundVolume] = useState(() => {
-    const saved = localStorage.getItem('evolve_timer_sound_volume');
-    return saved ? parseFloat(saved) : 0.6;
+    return readLocalNumber('evolve_timer_sound_volume', 0.6, 0, 1);
   });
 
   // Timer state. The running deadline is persisted so elapsed time is calculated from
   // timestamps instead of counting intervals (which drifts in background tabs).
   const [timerPreferences, setTimerPreferences] = useState(() => {
-    const saved = localStorage.getItem('evolve_timer_preferences');
-    return saved ? JSON.parse(saved) : { focus: 25, shortBreak: 5, longBreak: 15, sessionsBeforeLongBreak: 4 };
+    return sanitizeTimerPreferences(readLocalJson('evolve_timer_preferences', DEFAULT_TIMER_PREFERENCES, isPlainObject));
   });
-  const [timerMode, setTimerMode] = useState(() => localStorage.getItem('evolve_timer_mode') || 'pomodoro');
-  const [customMinutes, setCustomMinutes] = useState(() => Number(localStorage.getItem('evolve_custom_minutes')) || 25);
-  const [timeLeft, setTimeLeft] = useState(() => Number(localStorage.getItem('evolve_time_left')) || 25 * 60);
+  const [timerMode, setTimerMode] = useState(() => {
+    const mode = safeLocalGet('evolve_timer_mode');
+    return VALID_TIMER_MODES.has(mode) ? mode : 'pomodoro';
+  });
+  const [customMinutes, setCustomMinutes] = useState(() => readLocalNumber('evolve_custom_minutes', 25, 1, 360));
+  const [timeLeft, setTimeLeft] = useState(() => readLocalNumber('evolve_time_left', 25 * 60, 0, 21_600));
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerEndsAt, setTimerEndsAt] = useState(() => Number(localStorage.getItem('evolve_timer_ends_at')) || null);
+  const [timerEndsAt, setTimerEndsAt] = useState(() => {
+    const endsAt = readLocalNumber('evolve_timer_ends_at', 0, 0, Date.now() + 86_400_000);
+    return endsAt || null;
+  });
 
   // Ref guards for guaranteed single sound triggers
   const hasStartedSessionRef = useRef(false);
@@ -252,25 +426,22 @@ export const AppProvider = ({ children }) => {
 
   // Completed session records are the source of truth for streaks and analytics.
   const [focusSessions, setFocusSessions] = useState(() => {
-    const saved = localStorage.getItem('evolve_focus_sessions');
-    return saved ? JSON.parse(saved) : [];
+    return sanitizeFocusSessions(readLocalJson('evolve_focus_sessions', [], Array.isArray));
   });
   const streak = streakStats(focusSessions);
   const sessionsCompleted = focusSessions.length;
   const totalLoggedFocusMinutes = minutesFromSessions(focusSessions);
-  const [achievements, setAchievements] = useState(() => JSON.parse(localStorage.getItem('evolve_achievements') || '{}'));
-  const [dailyGoalMinutes, setDailyGoalMinutes] = useState(() => Number(localStorage.getItem('evolve_daily_goal')) || 180);
-  const [weeklyReflections, setWeeklyReflections] = useState(() => JSON.parse(localStorage.getItem('evolve_weekly_reflections') || '{}'));
+  const [achievements, setAchievements] = useState(() => sanitizeAchievements(readLocalJson('evolve_achievements', {}, isPlainObject)));
+  const [dailyGoalMinutes, setDailyGoalMinutes] = useState(() => readLocalNumber('evolve_daily_goal', 180, 5, 720));
+  const [weeklyReflections, setWeeklyReflections] = useState(() => sanitizeWeeklyReflections(readLocalJson('evolve_weekly_reflections', {}, isPlainObject)));
   const [lastCompletedSessionId, setLastCompletedSessionId] = useState(null);
 
   // Reminders / Calendar Tasks
   const [reminders, setReminders] = useState(() => {
-    const saved = localStorage.getItem('evolve_reminders');
-    return saved ? JSON.parse(saved) : DEFAULT_REMINDERS;
+    return sanitizeReminders(readLocalJson('evolve_reminders', DEFAULT_REMINDERS, Array.isArray));
   });
   const [checklists, setChecklists] = useState(() => {
-    const saved = localStorage.getItem('evolve_checklists');
-    return saved ? JSON.parse(saved) : [{ id: 'today', name: "Today's Focus", tasks: [] }];
+    return sanitizeChecklists(readLocalJson('evolve_checklists', [], Array.isArray));
   });
 
   // Quotes
@@ -278,8 +449,7 @@ export const AppProvider = ({ children }) => {
   const isQuoteLoading = false;
 
   const [favoriteQuotes, setFavoriteQuotes] = useState(() => {
-    const saved = localStorage.getItem('evolve_fav_quotes');
-    return saved ? JSON.parse(saved) : [];
+    return sanitizeFavoriteQuotes(readLocalJson('evolve_fav_quotes', [], Array.isArray));
   });
 
   // Browser storage remains an offline cache. Once signed in, every workspace
@@ -287,8 +457,8 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured) {
       workspaceLoadedForUserRef.current = null;
-      setIsWorkspaceLoading(false);
-      return undefined;
+      const clearLoading = window.setTimeout(() => setIsWorkspaceLoading(false), 0);
+      return () => window.clearTimeout(clearLoading);
     }
 
     let isMounted = true;
@@ -298,46 +468,50 @@ export const AppProvider = ({ children }) => {
       try {
         const [stateResult, sessionsResult] = await Promise.all([
           supabase.from('user_workspace_state').select('state').eq('user_id', user.id).maybeSingle(),
-          supabase.from('focus_sessions').select('id, minutes, session_date, completed_at').eq('user_id', user.id).order('completed_at', { ascending: true }),
+          supabase.from('focus_sessions').select('id, minutes, session_date, completed_at').eq('user_id', user.id).order('completed_at', { ascending: true }).limit(5_000),
         ]);
         if (stateResult.error) throw stateResult.error;
         if (sessionsResult.error) throw sessionsResult.error;
         if (!isMounted) return;
 
         const cloudState = stateResult.data?.state;
-        if (cloudState) {
-          if (Array.isArray(cloudState.spaces) && cloudState.spaces.length) setSpaces(cloudState.spaces);
-          if (typeof cloudState.activeSpaceId === 'string') setActiveSpaceId(cloudState.activeSpaceId);
-          if (Array.isArray(cloudState.reminders)) setReminders(cloudState.reminders);
-          if (Array.isArray(cloudState.checklists)) setChecklists(cloudState.checklists);
-          if (typeof cloudState.dailyGoalMinutes === 'number') setDailyGoalMinutes(cloudState.dailyGoalMinutes);
-          if (cloudState.weeklyReflections && typeof cloudState.weeklyReflections === 'object') setWeeklyReflections(cloudState.weeklyReflections);
-          if (cloudState.achievements && typeof cloudState.achievements === 'object') setAchievements(cloudState.achievements);
-          if (Array.isArray(cloudState.favoriteQuotes)) setFavoriteQuotes(cloudState.favoriteQuotes);
-          if (cloudState.timerPreferences && typeof cloudState.timerPreferences === 'object') setTimerPreferences(cloudState.timerPreferences);
-          if (typeof cloudState.timerMode === 'string') setTimerMode(cloudState.timerMode);
-          if (typeof cloudState.customMinutes === 'number') setCustomMinutes(cloudState.customMinutes);
-          if (typeof cloudState.timeLeft === 'number') setTimeLeft(cloudState.timeLeft);
-          if (typeof cloudState.timerEndsAt === 'number') setTimerEndsAt(cloudState.timerEndsAt);
+        if (isPlainObject(cloudState)) {
+          if (Array.isArray(cloudState.spaces) && cloudState.spaces.length) {
+            const safeSpaces = sanitizeSpaces(cloudState.spaces);
+            setSpaces(safeSpaces);
+            const safeActiveSpaceId = sanitizeId(cloudState.activeSpaceId, safeSpaces[0].id);
+            setActiveSpaceId(safeSpaces.some((space) => space.id === safeActiveSpaceId) ? safeActiveSpaceId : safeSpaces[0].id);
+          }
+          if (Array.isArray(cloudState.reminders)) setReminders(sanitizeReminders(cloudState.reminders));
+          if (Array.isArray(cloudState.checklists)) setChecklists(sanitizeChecklists(cloudState.checklists));
+          if (typeof cloudState.dailyGoalMinutes === 'number') setDailyGoalMinutes(clampNumber(cloudState.dailyGoalMinutes, 180, 5, 720));
+          if (cloudState.weeklyReflections && typeof cloudState.weeklyReflections === 'object') setWeeklyReflections(sanitizeWeeklyReflections(cloudState.weeklyReflections));
+          if (cloudState.achievements && typeof cloudState.achievements === 'object') setAchievements(sanitizeAchievements(cloudState.achievements));
+          if (Array.isArray(cloudState.favoriteQuotes)) setFavoriteQuotes(sanitizeFavoriteQuotes(cloudState.favoriteQuotes));
+          if (cloudState.timerPreferences && typeof cloudState.timerPreferences === 'object') setTimerPreferences(sanitizeTimerPreferences(cloudState.timerPreferences));
+          if (VALID_TIMER_MODES.has(cloudState.timerMode)) setTimerMode(cloudState.timerMode);
+          if (typeof cloudState.customMinutes === 'number') setCustomMinutes(clampNumber(cloudState.customMinutes, 25, 1, 360));
+          if (typeof cloudState.timeLeft === 'number') setTimeLeft(clampNumber(cloudState.timeLeft, 25 * 60, 0, 21_600));
+          if (typeof cloudState.timerEndsAt === 'number') setTimerEndsAt(clampNumber(cloudState.timerEndsAt, 0, 0, Date.now() + 86_400_000) || null);
           if (typeof cloudState.showQuotesWidget === 'boolean') setShowQuotesWidget(cloudState.showQuotesWidget);
           if (typeof cloudState.showFlipClockWidget === 'boolean') setShowFlipClockWidget(cloudState.showFlipClockWidget);
           if (typeof cloudState.showTasksWidget === 'boolean') setShowTasksWidget(cloudState.showTasksWidget);
           if (typeof cloudState.isFocusDimmed === 'boolean') setIsFocusDimmed(cloudState.isFocusDimmed);
           if (typeof cloudState.isTimerSoundEnabled === 'boolean') setIsTimerSoundEnabled(cloudState.isTimerSoundEnabled);
-          if (typeof cloudState.timerSoundVolume === 'number') setTimerSoundVolume(cloudState.timerSoundVolume);
+          if (typeof cloudState.timerSoundVolume === 'number') setTimerSoundVolume(clampNumber(cloudState.timerSoundVolume, 0.6, 0, 1));
         }
 
         if (sessionsResult.data.length) {
-          setFocusSessions(sessionsResult.data.map((session) => ({
+          setFocusSessions(sanitizeFocusSessions(sessionsResult.data.map((session) => ({
             id: session.id,
             minutes: session.minutes,
             date: session.session_date,
             completedAt: session.completed_at,
-          })));
-        } else if (localStorage.getItem('evolve_state_owner')) {
+          }))));
+        } else if (safeLocalGet('evolve_state_owner')) {
           setFocusSessions([]);
         }
-        localStorage.setItem('evolve_state_owner', user.id);
+        safeLocalSet('evolve_state_owner', user.id);
         workspaceLoadedForUserRef.current = user.id;
       } catch (error) {
         console.error('Unable to load workspace data from Supabase:', error);
@@ -396,21 +570,21 @@ export const AppProvider = ({ children }) => {
 
   // Persistence Sync
   useEffect(() => {
-    localStorage.setItem('evolve_spaces', JSON.stringify(spaces));
+    safeLocalSet('evolve_spaces', JSON.stringify(spaces));
   }, [spaces]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_active_space', activeSpaceId);
+    safeLocalSet('evolve_active_space', activeSpaceId);
   }, [activeSpaceId]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_reminders', JSON.stringify(reminders));
+    safeLocalSet('evolve_reminders', JSON.stringify(reminders));
   }, [reminders]);
 
-  useEffect(() => { localStorage.setItem('evolve_focus_sessions', JSON.stringify(focusSessions)); }, [focusSessions]);
-  useEffect(() => { localStorage.setItem('evolve_daily_goal', String(dailyGoalMinutes)); }, [dailyGoalMinutes]);
-  useEffect(() => { localStorage.setItem('evolve_weekly_reflections', JSON.stringify(weeklyReflections)); }, [weeklyReflections]);
-  useEffect(() => { localStorage.setItem('evolve_achievements', JSON.stringify(achievements)); }, [achievements]);
+  useEffect(() => { safeLocalSet('evolve_focus_sessions', JSON.stringify(focusSessions)); }, [focusSessions]);
+  useEffect(() => { safeLocalSet('evolve_daily_goal', String(dailyGoalMinutes)); }, [dailyGoalMinutes]);
+  useEffect(() => { safeLocalSet('evolve_weekly_reflections', JSON.stringify(weeklyReflections)); }, [weeklyReflections]);
+  useEffect(() => { safeLocalSet('evolve_achievements', JSON.stringify(achievements)); }, [achievements]);
   useEffect(() => {
     const byDay = focusSessions.reduce((all, session) => { const key = session.date; all[key] = all[key] || []; all[key].push(session); return all; }, {});
     const unlocked = ACHIEVEMENTS.filter((achievement) => {
@@ -421,39 +595,74 @@ export const AppProvider = ({ children }) => {
       return Object.values(byDay).some((sessions) => sessions.length >= achievement.target);
     });
     const fresh = unlocked.filter((achievement) => !achievements[achievement.id]);
-    if (fresh.length) { setAchievements((previous) => ({ ...previous, ...Object.fromEntries(fresh.map((item) => [item.id, new Date().toISOString()])) })); showToast(`Achievement unlocked: ${fresh[0].label}`); }
-  }, [focusSessions]);
-  useEffect(() => { localStorage.setItem('evolve_checklists', JSON.stringify(checklists)); }, [checklists]);
-  useEffect(() => { localStorage.setItem('evolve_timer_preferences', JSON.stringify(timerPreferences)); }, [timerPreferences]);
-  useEffect(() => { localStorage.setItem('evolve_timer_mode', timerMode); localStorage.setItem('evolve_custom_minutes', String(customMinutes)); localStorage.setItem('evolve_time_left', String(timeLeft)); localStorage.setItem('evolve_timer_ends_at', String(timerEndsAt || '')); }, [timerMode, customMinutes, timeLeft, timerEndsAt]);
+    if (!fresh.length) return undefined;
+    const announceAchievement = window.setTimeout(() => {
+      setAchievements((previous) => ({ ...previous, ...Object.fromEntries(fresh.map((item) => [item.id, new Date().toISOString()])) }));
+      showToast(`Achievement unlocked: ${fresh[0].label}`);
+    }, 0);
+    return () => window.clearTimeout(announceAchievement);
+  }, [focusSessions, achievements, streak.best, totalLoggedFocusMinutes]);
+  useEffect(() => { safeLocalSet('evolve_checklists', JSON.stringify(checklists)); }, [checklists]);
+  useEffect(() => { safeLocalSet('evolve_timer_preferences', JSON.stringify(timerPreferences)); }, [timerPreferences]);
+  useEffect(() => { safeLocalSet('evolve_timer_mode', timerMode); safeLocalSet('evolve_custom_minutes', String(customMinutes)); safeLocalSet('evolve_time_left', String(timeLeft)); safeLocalSet('evolve_timer_ends_at', String(timerEndsAt || '')); }, [timerMode, customMinutes, timeLeft, timerEndsAt]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_fav_quotes', JSON.stringify(favoriteQuotes));
+    safeLocalSet('evolve_fav_quotes', JSON.stringify(favoriteQuotes));
   }, [favoriteQuotes]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_show_quotes_widget', showQuotesWidget.toString());
+    safeLocalSet('evolve_show_quotes_widget', showQuotesWidget.toString());
   }, [showQuotesWidget]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_show_flip_clock', showFlipClockWidget.toString());
+    safeLocalSet('evolve_show_flip_clock', showFlipClockWidget.toString());
   }, [showFlipClockWidget]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_show_tasks_widget', showTasksWidget.toString());
+    safeLocalSet('evolve_show_tasks_widget', showTasksWidget.toString());
   }, [showTasksWidget]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_focus_dimmed', isFocusDimmed.toString());
+    safeLocalSet('evolve_focus_dimmed', isFocusDimmed.toString());
   }, [isFocusDimmed]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_timer_sound_enabled', isTimerSoundEnabled.toString());
+    safeLocalSet('evolve_timer_sound_enabled', isTimerSoundEnabled.toString());
   }, [isTimerSoundEnabled]);
 
   useEffect(() => {
-    localStorage.setItem('evolve_timer_sound_volume', timerSoundVolume.toString());
+    safeLocalSet('evolve_timer_sound_volume', timerSoundVolume.toString());
   }, [timerSoundVolume]);
+
+  const updateTimerPreferences = (nextPreferences) => {
+    setTimerPreferences((previous) => sanitizeTimerPreferences(
+      typeof nextPreferences === 'function' ? nextPreferences(previous) : nextPreferences,
+    ));
+  };
+
+  const updateCustomMinutes = (nextMinutes) => {
+    setCustomMinutes((previous) => clampNumber(
+      typeof nextMinutes === 'function' ? nextMinutes(previous) : nextMinutes,
+      previous,
+      1,
+      360,
+    ));
+  };
+
+  const updateDailyGoalMinutes = (nextGoal) => {
+    setDailyGoalMinutes((previous) => clampNumber(
+      typeof nextGoal === 'function' ? nextGoal(previous) : nextGoal,
+      previous,
+      5,
+      720,
+    ));
+  };
+
+  const updateWeeklyReflections = (nextReflections) => {
+    setWeeklyReflections((previous) => sanitizeWeeklyReflections(
+      typeof nextReflections === 'function' ? nextReflections(previous) : nextReflections,
+    ));
+  };
 
   // Auth Methods
   const login = async (email, password) => {
@@ -513,33 +722,49 @@ export const AppProvider = ({ children }) => {
   const activeSpace = spaces.find(s => s.id === activeSpaceId) || spaces[0];
 
   const handleSetActiveSpace = (spaceId) => {
-    setActiveSpaceId(spaceId);
     const targetSpace = spaces.find(s => s.id === spaceId);
-    if (targetSpace && targetSpace.associatedSound) {
+    if (!targetSpace) return;
+    setActiveSpaceId(targetSpace.id);
+    if (targetSpace.associatedSound) {
       soundEngine.playSound(targetSpace.associatedSound);
       setActiveSoundId(targetSpace.associatedSound);
     }
   };
 
   const addSpace = (newSpace) => {
+    const name = truncateText(newSpace?.name, 'Custom Focus Space', 80).trim() || 'Custom Focus Space';
+    const background = isTrustedBackgroundImageUrl(newSpace?.bg)
+      ? normalizeHttpsUrl(newSpace.bg)
+      : DEFAULT_SPACES[0].bg;
     const created = {
       id: `space-${Date.now()}`,
-      name: newSpace.name || 'Custom Focus Space',
-      icon: newSpace.icon || 'Sparkles',
-      type: newSpace.type || 'image',
-      bg: newSpace.bg || 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=2000&q=80',
-      overlayOpacity: newSpace.overlayOpacity !== undefined ? newSpace.overlayOpacity : 0.8,
-      associatedSound: newSpace.associatedSound || 'forest',
+      name,
+      icon: truncateText(newSpace?.icon, 'Sparkles', 40) || 'Sparkles',
+      type: 'image',
+      bg: background,
+      overlayOpacity: clampNumber(newSpace?.overlayOpacity, 0.8, 0, 1),
+      associatedSound: VALID_SOUNDS.has(newSpace?.associatedSound) ? newSpace.associatedSound : 'forest',
       color: '#10b981',
-      notes: `### Notes for ${newSpace.name || 'Custom Space'}\n- Define target focus goals for this session.`,
+      notes: `### Notes for ${name}\n- Define target focus goals for this session.`,
       links: []
     };
+    if (spaces.length >= 10) {
+      showToast('You can keep up to 10 focus environments.', 'error');
+      return false;
+    }
     setSpaces(prev => [...prev, created]);
-    handleSetActiveSpace(created.id);
+    setActiveSpaceId(created.id);
+    soundEngine.playSound(created.associatedSound);
+    setActiveSoundId(created.associatedSound);
+    return true;
   };
 
   const updateSpace = (spaceId, updates) => {
-    setSpaces(spaces.map(s => s.id === spaceId ? { ...s, ...updates } : s));
+    if (!isPlainObject(updates)) return;
+    const safeUpdates = {};
+    if ('overlayOpacity' in updates) safeUpdates.overlayOpacity = clampNumber(updates.overlayOpacity, 0.8, 0, 1);
+    if (!Object.keys(safeUpdates).length) return;
+    setSpaces((previous) => previous.map((space) => space.id === spaceId ? { ...space, ...safeUpdates } : space));
   };
 
   const deleteSpace = (spaceId) => {
@@ -552,12 +777,17 @@ export const AppProvider = ({ children }) => {
   };
 
   const addSpaceLink = (spaceId, link) => {
-    setSpaces(spaces.map(s => {
-      if (s.id === spaceId) {
-        return { ...s, links: [...s.links, { id: `link-${Date.now()}`, ...link }] };
+    const url = normalizeHttpsUrl(link?.url);
+    if (!url) return false;
+    const title = truncateText(link?.title, 'Untitled link', 120).trim() || 'Untitled link';
+    setSpaces((previous) => previous.map((space) => {
+      if (space.id === spaceId) {
+        if (space.links.length >= 10) return space;
+        return { ...space, links: [...space.links, { id: `link-${Date.now()}`, title, url }] };
       }
-      return s;
+      return space;
     }));
+    return true;
   };
 
   const deleteSpaceLink = (spaceId, linkId) => {
@@ -570,19 +800,28 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateSpaceNotes = (spaceId, notes) => {
-    setSpaces(spaces.map(s => s.id === spaceId ? { ...s, notes } : s));
+    const safeNotes = truncateText(notes, '', 2_000);
+    setSpaces((previous) => previous.map((space) => space.id === spaceId ? { ...space, notes: safeNotes } : space));
   };
 
   const logFocusTime = (minutes) => {
     const mins = Math.round(Number(minutes));
-    if (!Number.isFinite(mins) || mins <= 0) return;
+    if (!Number.isFinite(mins) || mins < 1 || mins > 1_440) return;
     const completedAt = new Date().toISOString();
-    const id = `focus-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const nonce = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2, 12);
+    const id = `focus-${nonce}`;
     setFocusSessions((previous) => [...previous, { id, minutes: mins, date: localDateKey(), completedAt }]);
     setLastCompletedSessionId(id);
     return id;
   };
-  const updateFocusSession = (id, updates) => setFocusSessions((previous) => previous.map((session) => session.id === id ? { ...session, ...updates } : session));
+  const updateFocusSession = (id, updates) => {
+    if (!isPlainObject(updates)) return;
+    const safeUpdates = {};
+    if ('quality' in updates) safeUpdates.quality = clampNumber(updates.quality, 0, 0, 5);
+    if ('note' in updates) safeUpdates.note = truncateText(updates.note, '', 500);
+    if (!Object.keys(safeUpdates).length) return;
+    setFocusSessions((previous) => previous.map((session) => session.id === id ? { ...session, ...safeUpdates } : session));
+  };
 
   const saveCurrentFocusSegment = (remainingSeconds) => {
     if (timerMode !== 'pomodoro' && timerMode !== 'custom') return;
@@ -656,13 +895,20 @@ export const AppProvider = ({ children }) => {
     tick();
     const interval = window.setInterval(tick, 500);
     return () => window.clearInterval(interval);
+  // completeTimer intentionally reads the current timer settings without recreating the interval on every tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimerRunning, timerEndsAt, timerMode, timerSoundVolume, isTimerSoundEnabled]);
 
   useEffect(() => {
     if (!timerEndsAt) return;
-    const remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
-    if (remaining === 0) completeTimer();
-    else { setTimeLeft(remaining); setIsTimerRunning(true); }
+    const resumeTimer = window.setTimeout(() => {
+      const remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
+      if (remaining === 0) completeTimer();
+      else { setTimeLeft(remaining); setIsTimerRunning(true); }
+    }, 0);
+    return () => window.clearTimeout(resumeTimer);
+  // This is a mount-only restoration of the persisted deadline.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* legacy timer effect removed: background interval countdown was inaccurate */
@@ -691,6 +937,7 @@ export const AppProvider = ({ children }) => {
   }, [isTimerRunning, timeLeft, timerMode, customMinutes, isTimerSoundEnabled, timerSoundVolume]); */
 
   const changeTimerMode = (mode, customMins = customMinutes) => {
+    if (!VALID_TIMER_MODES.has(mode)) return;
     setIsTimerRunning(false);
     setTimerEndsAt(null);
     hasStartedSessionRef.current = false;
@@ -704,27 +951,39 @@ export const AppProvider = ({ children }) => {
     } else if (mode === 'longBreak') {
       setTimeLeft(timerPreferences.longBreak * 60);
     } else if (mode === 'custom') {
-      setCustomMinutes(customMins);
-      setTimeLeft(customMins * 60);
+      const safeMinutes = clampNumber(customMins, 25, 1, 360);
+      setCustomMinutes(safeMinutes);
+      setTimeLeft(safeMinutes * 60);
     }
   };
 
   // Reminders / Calendar Tasks Management
   const addReminder = (title, time, priority = 'medium', date = new Date().toISOString().split('T')[0], notes = '') => {
+    const safeTitle = truncateText(title, '', 160).trim();
+    if (!safeTitle) return;
     const newRem = {
       id: `rem-${Date.now()}`,
-      title: title.trim(),
-      time: time || '10:00 AM',
-      date: date || new Date().toISOString().split('T')[0],
-      priority,
-      notes,
+      title: safeTitle,
+      time: truncateText(time, '10:00 AM', 32) || '10:00 AM',
+      date: sanitizeDate(date, new Date().toISOString().split('T')[0]),
+      priority: VALID_PRIORITIES.has(priority) ? priority : 'medium',
+      notes: truncateText(notes, '', 2_000),
       completed: false
     };
-    setReminders(prev => [newRem, ...prev]);
+    setReminders(prev => prev.length >= 50 ? prev : [newRem, ...prev]);
   };
 
   const updateReminder = (id, updates) => {
-    setReminders(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    if (!isPlainObject(updates)) return;
+    const safeUpdates = {};
+    if ('title' in updates) safeUpdates.title = truncateText(updates.title, '', 160).trim();
+    if ('time' in updates) safeUpdates.time = truncateText(updates.time, '10:00 AM', 32) || '10:00 AM';
+    if ('date' in updates) safeUpdates.date = sanitizeDate(updates.date, localDateKey());
+    if ('priority' in updates) safeUpdates.priority = VALID_PRIORITIES.has(updates.priority) ? updates.priority : 'medium';
+    if ('notes' in updates) safeUpdates.notes = truncateText(updates.notes, '', 1_000);
+    if ('completed' in updates) safeUpdates.completed = Boolean(updates.completed);
+    if (!Object.keys(safeUpdates).length || ('title' in safeUpdates && !safeUpdates.title)) return;
+    setReminders(prev => prev.map(r => r.id === id ? { ...r, ...safeUpdates } : r));
   };
 
   const toggleReminder = (id) => {
@@ -735,14 +994,33 @@ export const AppProvider = ({ children }) => {
     setReminders(prev => prev.filter(r => r.id !== id));
   };
 
-  const addChecklist = (name) => setChecklists((previous) => [...previous, { id: `list-${Date.now()}`, name: name.trim() || 'New checklist', tasks: [] }]);
-  const updateChecklist = (id, updates) => setChecklists((previous) => previous.map((list) => list.id === id ? { ...list, ...updates } : list));
+  const addChecklist = (name) => {
+    const safeName = truncateText(name, 'New checklist', 80).trim() || 'New checklist';
+    setChecklists((previous) => previous.length >= 10 ? previous : [...previous, { id: `list-${Date.now()}`, name: safeName, tasks: [] }]);
+  };
+  const updateChecklist = (id, updates) => {
+    if (!isPlainObject(updates) || !('name' in updates)) return;
+    const name = truncateText(updates.name, '', 80).trim();
+    if (!name) return;
+    setChecklists((previous) => previous.map((list) => list.id === id ? { ...list, name } : list));
+  };
   const deleteChecklist = (id) => setChecklists((previous) => previous.length > 1 ? previous.filter((list) => list.id !== id) : previous);
   const addChecklistTask = (listId, title) => {
-    if (!title.trim()) return;
-    setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: [...list.tasks, { id: `task-${Date.now()}`, title: title.trim(), completed: false }] } : list));
+    const safeTitle = truncateText(title, '', 120).trim();
+    if (!safeTitle) return;
+    setChecklists((previous) => previous.map((list) => {
+      if (list.id !== listId || list.tasks.length >= 50) return list;
+      return { ...list, tasks: [...list.tasks, { id: `task-${Date.now()}`, title: safeTitle, completed: false }] };
+    }));
   };
-  const updateChecklistTask = (listId, taskId, updates) => setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: list.tasks.map((task) => task.id === taskId ? { ...task, ...updates } : task) } : list));
+  const updateChecklistTask = (listId, taskId, updates) => {
+    if (!isPlainObject(updates)) return;
+    const safeUpdates = {};
+    if ('title' in updates) safeUpdates.title = truncateText(updates.title, '', 120).trim();
+    if ('completed' in updates) safeUpdates.completed = Boolean(updates.completed);
+    if (!Object.keys(safeUpdates).length || ('title' in safeUpdates && !safeUpdates.title)) return;
+    setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: list.tasks.map((task) => task.id === taskId ? { ...task, ...safeUpdates } : task) } : list));
+  };
   const deleteChecklistTask = (listId, taskId) => setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: list.tasks.filter((task) => task.id !== taskId) } : list));
 
   // Quotes
@@ -806,9 +1084,9 @@ export const AppProvider = ({ children }) => {
       timerMode,
       changeTimerMode,
       timerPreferences,
-      setTimerPreferences,
+      setTimerPreferences: updateTimerPreferences,
       customMinutes,
-      setCustomMinutes,
+      setCustomMinutes: updateCustomMinutes,
       timeLeft,
       setTimeLeft,
       isTimerRunning,
@@ -823,9 +1101,9 @@ export const AppProvider = ({ children }) => {
       setLastCompletedSessionId,
       streak,
       dailyGoalMinutes,
-      setDailyGoalMinutes,
+      setDailyGoalMinutes: updateDailyGoalMinutes,
       weeklyReflections,
-      setWeeklyReflections,
+      setWeeklyReflections: updateWeeklyReflections,
       achievements,
       achievementDefinitions: ACHIEVEMENTS,
       logFocusTime,

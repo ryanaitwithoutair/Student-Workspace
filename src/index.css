@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Evolve Design System - Permanent Neutral Obsidian Glass Aesthetic */
 
 :root {

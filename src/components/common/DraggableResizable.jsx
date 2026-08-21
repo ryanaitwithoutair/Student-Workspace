@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { isPlainObject, readLocalJson, safeLocalSet } from '../../utils/security';
 
 /**
  * DraggableResizable - A lightweight, touch-friendly, workspace-bounded
@@ -15,12 +16,8 @@ export const DraggableResizable = ({
   // Load saved position from localStorage
   const [position, setPosition] = useState(() => {
     if (!storageKey) return defaultPosition;
-    try {
-      const saved = localStorage.getItem(`evolve_pos_${storageKey}`);
-      return saved ? JSON.parse(saved) : defaultPosition;
-    } catch {
-      return defaultPosition;
-    }
+    const saved = readLocalJson(`evolve_pos_${storageKey}`, defaultPosition, isPlainObject);
+    return Number.isFinite(saved.x) && Number.isFinite(saved.y) ? saved : defaultPosition;
   });
 
   const [isDragging, setIsDragging] = useState(false);
@@ -30,7 +27,7 @@ export const DraggableResizable = ({
   // Save changes to localStorage
   useEffect(() => {
     if (storageKey) {
-      localStorage.setItem(`evolve_pos_${storageKey}`, JSON.stringify(position));
+      safeLocalSet(`evolve_pos_${storageKey}`, JSON.stringify(position));
     }
   }, [position, storageKey]);
 

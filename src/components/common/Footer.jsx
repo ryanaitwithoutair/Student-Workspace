@@ -39,13 +39,13 @@ export const Footer = () => {
         <div>
           <h4 className="text-sm font-semibold text-gray-900 dark:text-emerald-300 uppercase tracking-wider mb-4">Connect</h4>
           <div className="flex items-center gap-4 text-gray-500 dark:text-gray-400">
-            <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-emerald-400 transition-colors">
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">
               <Github className="w-5 h-5" />
             </a>
-            <a href="https://twitter.com" target="_blank" rel="noreferrer" className="hover:text-emerald-400 transition-colors">
+            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">
               <Twitter className="w-5 h-5" />
             </a>
-            <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="hover:text-emerald-400 transition-colors">
+            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">
               <Linkedin className="w-5 h-5" />
             </a>
           </div>

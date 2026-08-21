@@ -12,6 +12,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { getDimmingLabel, getSpaceOverlayOpacity } from '../../utils/overlay';
 import { MIN_BG_VISIBILITY } from '../../utils/constants';
+import { isTrustedBackgroundImageUrl, normalizeHttpsUrl } from '../../utils/security';
 
 export const SpacesView = () => {
   const { 
@@ -23,7 +24,8 @@ export const SpacesView = () => {
     addSpaceLink, 
     deleteSpaceLink, 
     updateSpaceNotes,
-    updateSpace
+    updateSpace,
+    showToast,
   } = useApp();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -72,12 +74,16 @@ export const SpacesView = () => {
     e.preventDefault();
     if (!linkTitle.trim() || !linkUrl.trim()) return;
 
-    let formattedUrl = linkUrl;
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      formattedUrl = `https://${formattedUrl}`;
+    const formattedUrl = normalizeHttpsUrl(linkUrl);
+    if (!formattedUrl) {
+      showToast('Enter a valid HTTPS link. Other protocols are blocked for safety.', 'error');
+      return;
     }
 
-    addSpaceLink(activeSpace.id, { title: linkTitle, url: formattedUrl });
+    if (!addSpaceLink(activeSpace.id, { title: linkTitle, url: formattedUrl })) {
+      showToast('Unable to add that link. Each space can contain up to 30 valid HTTPS links.', 'error');
+      return;
+    }
     setLinkTitle('');
     setLinkUrl('');
   };
@@ -125,7 +131,7 @@ export const SpacesView = () => {
                   : 'border-neutral-800 hover:border-neutral-600 hover:scale-[1.01]'
               }`}
               style={{
-                background: space.type === 'image' 
+                background: space.type === 'image' && isTrustedBackgroundImageUrl(space.bg)
                   ? `linear-gradient(to bottom, rgba(9, 9, 11, 0.4), rgba(9, 9, 11, 0.9)), url(${space.bg}) center/cover no-repeat`
                   : space.bg
               }}
@@ -239,7 +245,7 @@ export const SpacesView = () => {
                     <a 
                       href={link.url} 
                       target="_blank" 
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="font-medium text-emerald-400 hover:underline flex items-center gap-2 truncate max-w-[180px]"
                     >
                       <ExternalLink className="w-3.5 h-3.5 shrink-0" />

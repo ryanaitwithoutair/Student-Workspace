@@ -13,6 +13,7 @@ import { TasksWidget } from '../components/workspace/TasksWidget';
 import { ChecklistsView } from '../components/workspace/ChecklistsView';
 import { AnalyticsView } from '../components/workspace/AnalyticsView';
 import { getSpaceOverlayOpacity } from '../utils/overlay';
+import { isTrustedBackgroundImageUrl } from '../utils/security';
 
 export const WorkspacePage = () => {
   const { 
@@ -65,7 +66,7 @@ export const WorkspacePage = () => {
     }
   };
 
-  const bgStyle = activeSpace?.type === 'image' 
+  const bgStyle = activeSpace?.type === 'image' && isTrustedBackgroundImageUrl(activeSpace.bg)
     ? { backgroundImage: `url(${activeSpace.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: activeSpace?.bg || '#09090b' };
 
