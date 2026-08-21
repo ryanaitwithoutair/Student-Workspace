@@ -92,7 +92,11 @@ export const TimerView = () => {
   const progressPercent = Math.max(0, Math.min(100, ((totalSecs - timeLeft) / totalSecs) * 100));
 
   const timerSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 260 : 320;
-  const svgRadius = (timerSize / 2) - 24;
+  const timerPadding = timerSize < 320 ? 16 : 24;
+  const timerCanvasSize = timerSize - (timerPadding * 2);
+  const timerStrokeWidth = 12;
+  const svgRadius = (timerCanvasSize - timerStrokeWidth) / 2;
+  const svgCenter = timerCanvasSize / 2;
   const svgCircumference = 2 * Math.PI * svgRadius;
   const strokeDashoffset = svgCircumference - (progressPercent / 100) * svgCircumference;
 
@@ -141,28 +145,28 @@ export const TimerView = () => {
         >
           {() => (
             <div 
-              style={widgetBgStyle}
-              className="rounded-full p-4 sm:p-6 border border-emerald-500/40 shadow-2xl flex flex-col items-center justify-center relative transition-all duration-500 hover:border-emerald-400"
+              style={{ ...widgetBgStyle, width: `${timerSize}px`, height: `${timerSize}px`, padding: `${timerPadding}px` }}
+              className="rounded-full shrink-0 border border-emerald-500/40 shadow-2xl flex flex-col items-center justify-center relative transition-all duration-500 hover:border-emerald-400"
             >
               <div
                 className="relative flex items-center justify-center"
-                style={{ width: `${timerSize - 48}px`, height: `${timerSize - 48}px` }}
+                style={{ width: `${timerCanvasSize}px`, height: `${timerCanvasSize}px` }}
               >
-                <svg className="w-full h-full transform -rotate-90" aria-hidden="true">
+                <svg className="w-full h-full transform -rotate-90" viewBox={`0 0 ${timerCanvasSize} ${timerCanvasSize}`} aria-hidden="true">
                   <circle
-                    cx="50%"
-                    cy="50%"
+                    cx={svgCenter}
+                    cy={svgCenter}
                     r={svgRadius}
                     className="stroke-neutral-800/80"
-                    strokeWidth="12"
+                    strokeWidth={timerStrokeWidth}
                     fill="transparent"
                   />
                   <circle
-                    cx="50%"
-                    cy="50%"
+                    cx={svgCenter}
+                    cy={svgCenter}
                     r={svgRadius}
                     className="stroke-emerald-400 transition-all duration-1000 ease-linear"
-                    strokeWidth="12"
+                    strokeWidth={timerStrokeWidth}
                     strokeDasharray={svgCircumference}
                     strokeDashoffset={strokeDashoffset}
                     strokeLinecap="round"
