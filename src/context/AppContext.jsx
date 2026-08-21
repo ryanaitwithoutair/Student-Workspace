@@ -273,7 +273,7 @@ export const AppProvider = ({ children }) => {
   });
 
   // Quotes
-  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * QUOTES_DATABASE.length));
   const isQuoteLoading = false;
 
   const [favoriteQuotes, setFavoriteQuotes] = useState(() => {
@@ -736,7 +736,11 @@ export const AppProvider = ({ children }) => {
 
   // Quotes
   const refreshQuote = () => {
-    setQuoteIndex(prev => (prev + 1) % QUOTES_DATABASE.length);
+    setQuoteIndex((currentIndex) => {
+      if (QUOTES_DATABASE.length < 2) return currentIndex;
+      const offset = 1 + Math.floor(Math.random() * (QUOTES_DATABASE.length - 1));
+      return (currentIndex + offset) % QUOTES_DATABASE.length;
+    });
   };
 
   const toggleFavoriteQuote = (quoteObj) => {
