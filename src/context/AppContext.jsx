@@ -248,6 +248,7 @@ export const AppProvider = ({ children }) => {
   // Ref guards for guaranteed single sound triggers
   const hasStartedSessionRef = useRef(false);
   const hasFiredEndSoundRef = useRef(false);
+  const focusSegmentStartRemainingRef = useRef(null);
 
   // Completed session records are the source of truth for streaks and analytics.
   const [focusSessions, setFocusSessions] = useState(() => {
@@ -583,11 +584,15 @@ export const AppProvider = ({ children }) => {
   };
   const updateFocusSession = (id, updates) => setFocusSessions((previous) => previous.map((session) => session.id === id ? { ...session, ...updates } : session));
 
-  const durationForMode = (mode, custom = customMinutes) => {
-    if (mode === 'pomodoro') return timerPreferences.focus;
-    if (mode === 'shortBreak') return timerPreferences.shortBreak;
-    if (mode === 'longBreak') return timerPreferences.longBreak;
-    return custom;
+  const saveCurrentFocusSegment = (remainingSeconds) => {
+    if (timerMode !== 'pomodoro' && timerMode !== 'custom') return;
+    const startedWith = focusSegmentStartRemainingRef.current;
+    if (!Number.isFinite(startedWith)) return;
+
+    const elapsedSeconds = Math.max(0, startedWith - remainingSeconds);
+    const elapsedMinutes = Math.round(elapsedSeconds / 60);
+    if (elapsedMinutes > 0) logFocusTime(elapsedMinutes);
+    focusSegmentStartRemainingRef.current = null;
   };
 
   // Timer control with a persisted deadline and single completion guard.
@@ -598,13 +603,16 @@ export const AppProvider = ({ children }) => {
       hasStartedSessionRef.current = true;
     }
     hasFiredEndSoundRef.current = false;
+    focusSegmentStartRemainingRef.current = timeLeft;
     const deadline = Date.now() + timeLeft * 1000;
     setTimerEndsAt(deadline);
     setIsTimerRunning(true);
   };
 
   const pauseTimer = () => {
-    if (timerEndsAt) setTimeLeft(Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000)));
+    const remaining = timerEndsAt ? Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000)) : timeLeft;
+    saveCurrentFocusSegment(remaining);
+    setTimeLeft(remaining);
     setTimerEndsAt(null);
     setIsTimerRunning(false);
     // Pause does NOT play completion sound or reset session start flag
@@ -615,6 +623,7 @@ export const AppProvider = ({ children }) => {
     setTimerEndsAt(null);
     hasStartedSessionRef.current = false;
     hasFiredEndSoundRef.current = false;
+    focusSegmentStartRemainingRef.current = null;
     changeTimerMode(timerMode);
   };
 
@@ -626,7 +635,7 @@ export const AppProvider = ({ children }) => {
       hasFiredEndSoundRef.current = true;
       soundEngine.playTimerEndSound(timerSoundVolume, isTimerSoundEnabled);
       if (timerMode === 'pomodoro' || timerMode === 'custom') {
-        logFocusTime(durationForMode(timerMode));
+        saveCurrentFocusSegment(0);
         const breakMode = (sessionsCompleted + 1) % timerPreferences.sessionsBeforeLongBreak === 0 ? 'longBreak' : 'shortBreak';
         setTimerMode(breakMode);
         setTimeLeft(timerPreferences[breakMode] * 60);
@@ -634,6 +643,7 @@ export const AppProvider = ({ children }) => {
       } else showToast('Break complete. Ready for your next focus block.');
     }
     hasStartedSessionRef.current = false;
+    focusSegmentStartRemainingRef.current = null;
   };
 
   useEffect(() => {
@@ -685,6 +695,7 @@ export const AppProvider = ({ children }) => {
     setTimerEndsAt(null);
     hasStartedSessionRef.current = false;
     hasFiredEndSoundRef.current = false;
+    focusSegmentStartRemainingRef.current = null;
     setTimerMode(mode);
     if (mode === 'pomodoro') {
       setTimeLeft(timerPreferences.focus * 60);
