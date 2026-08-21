@@ -153,6 +153,8 @@ export const AppProvider = ({ children }) => {
   // Auth User
   const [user, setUser] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(isSupabaseConfigured);
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const workspaceLoadedForUserRef = useRef(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -278,6 +280,118 @@ export const AppProvider = ({ children }) => {
     const saved = localStorage.getItem('evolve_fav_quotes');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Browser storage remains an offline cache. Once signed in, every workspace
+  // record is loaded from and saved to the authenticated user's Supabase rows.
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured) {
+      workspaceLoadedForUserRef.current = null;
+      setIsWorkspaceLoading(false);
+      return undefined;
+    }
+
+    let isMounted = true;
+    const loadWorkspace = async () => {
+      workspaceLoadedForUserRef.current = null;
+      setIsWorkspaceLoading(true);
+      try {
+        const [stateResult, sessionsResult] = await Promise.all([
+          supabase.from('user_workspace_state').select('state').eq('user_id', user.id).maybeSingle(),
+          supabase.from('focus_sessions').select('id, minutes, session_date, completed_at').eq('user_id', user.id).order('completed_at', { ascending: true }),
+        ]);
+        if (stateResult.error) throw stateResult.error;
+        if (sessionsResult.error) throw sessionsResult.error;
+        if (!isMounted) return;
+
+        const cloudState = stateResult.data?.state;
+        if (cloudState) {
+          if (Array.isArray(cloudState.spaces) && cloudState.spaces.length) setSpaces(cloudState.spaces);
+          if (typeof cloudState.activeSpaceId === 'string') setActiveSpaceId(cloudState.activeSpaceId);
+          if (Array.isArray(cloudState.reminders)) setReminders(cloudState.reminders);
+          if (Array.isArray(cloudState.checklists)) setChecklists(cloudState.checklists);
+          if (typeof cloudState.dailyGoalMinutes === 'number') setDailyGoalMinutes(cloudState.dailyGoalMinutes);
+          if (cloudState.weeklyReflections && typeof cloudState.weeklyReflections === 'object') setWeeklyReflections(cloudState.weeklyReflections);
+          if (cloudState.achievements && typeof cloudState.achievements === 'object') setAchievements(cloudState.achievements);
+          if (Array.isArray(cloudState.favoriteQuotes)) setFavoriteQuotes(cloudState.favoriteQuotes);
+          if (cloudState.timerPreferences && typeof cloudState.timerPreferences === 'object') setTimerPreferences(cloudState.timerPreferences);
+          if (typeof cloudState.timerMode === 'string') setTimerMode(cloudState.timerMode);
+          if (typeof cloudState.customMinutes === 'number') setCustomMinutes(cloudState.customMinutes);
+          if (typeof cloudState.timeLeft === 'number') setTimeLeft(cloudState.timeLeft);
+          if (typeof cloudState.timerEndsAt === 'number') setTimerEndsAt(cloudState.timerEndsAt);
+          if (typeof cloudState.showQuotesWidget === 'boolean') setShowQuotesWidget(cloudState.showQuotesWidget);
+          if (typeof cloudState.showFlipClockWidget === 'boolean') setShowFlipClockWidget(cloudState.showFlipClockWidget);
+          if (typeof cloudState.showTasksWidget === 'boolean') setShowTasksWidget(cloudState.showTasksWidget);
+          if (typeof cloudState.isFocusDimmed === 'boolean') setIsFocusDimmed(cloudState.isFocusDimmed);
+          if (typeof cloudState.isTimerSoundEnabled === 'boolean') setIsTimerSoundEnabled(cloudState.isTimerSoundEnabled);
+          if (typeof cloudState.timerSoundVolume === 'number') setTimerSoundVolume(cloudState.timerSoundVolume);
+        }
+
+        if (sessionsResult.data.length) {
+          setFocusSessions(sessionsResult.data.map((session) => ({
+            id: session.id,
+            minutes: session.minutes,
+            date: session.session_date,
+            completedAt: session.completed_at,
+          })));
+        } else if (localStorage.getItem('evolve_state_owner')) {
+          setFocusSessions([]);
+        }
+        localStorage.setItem('evolve_state_owner', user.id);
+        workspaceLoadedForUserRef.current = user.id;
+      } catch (error) {
+        console.error('Unable to load workspace data from Supabase:', error);
+        showToast('Cloud data is unavailable. Run supabase/schema.sql, then refresh.', 'error');
+      } finally {
+        if (isMounted) setIsWorkspaceLoading(false);
+      }
+    };
+
+    void loadWorkspace();
+    return () => { isMounted = false; };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id) return undefined;
+
+    const saveWorkspace = async () => {
+      const { error } = await supabase.from('user_workspace_state').upsert({
+        user_id: user.id,
+        state: {
+          spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes,
+          weeklyReflections, achievements, favoriteQuotes, timerPreferences,
+          timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget,
+          showFlipClockWidget, showTasksWidget, isFocusDimmed,
+          isTimerSoundEnabled, timerSoundVolume,
+        },
+        updated_at: new Date().toISOString(),
+      });
+      if (error) console.error('Unable to save workspace data to Supabase:', error);
+    };
+
+    const timer = window.setTimeout(() => { void saveWorkspace(); }, 500);
+    return () => window.clearTimeout(timer);
+  }, [user?.id, isWorkspaceLoading, spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes, weeklyReflections, achievements, favoriteQuotes, timerPreferences, timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget, showFlipClockWidget, showTasksWidget, isFocusDimmed, isTimerSoundEnabled, timerSoundVolume]);
+
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id || !focusSessions.length) return undefined;
+
+    const saveFocusSessions = async () => {
+      const { error } = await supabase.from('focus_sessions').upsert(
+        focusSessions.map((session) => ({
+          user_id: user.id,
+          id: session.id,
+          minutes: session.minutes,
+          session_date: session.date || localDateKey(session.completedAt),
+          completed_at: session.completedAt || new Date().toISOString(),
+        })),
+        { onConflict: 'user_id,id' },
+      );
+      if (error) console.error('Unable to save focus sessions to Supabase:', error);
+    };
+
+    void saveFocusSessions();
+    return undefined;
+  }, [user?.id, isWorkspaceLoading, focusSessions]);
 
   // Persistence Sync
   useEffect(() => {
@@ -641,6 +755,7 @@ export const AppProvider = ({ children }) => {
       dismissToast,
       user,
       isAuthLoading,
+      isWorkspaceLoading,
       login,
       logout,
       activeTab,
