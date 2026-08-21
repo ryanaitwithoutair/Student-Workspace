@@ -17,10 +17,10 @@ export const Toast = ({ message, type = 'success', onClose }) => {
     <div
       role="status"
       aria-live="polite"
-      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3 rounded-2xl border shadow-2xl backdrop-blur-xl animate-fadeIn ${styles[type]}`}
+      className={`fixed top-5 left-1/2 z-[100] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-xl animate-fadeIn sm:px-5 ${styles[type]}`}
     >
       <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
-      <span className="text-sm font-medium">{message}</span>
+      <span className="text-sm font-medium leading-snug">{message}</span>
       <button
         onClick={onClose}
         className="p-1 rounded-lg hover:bg-white/10 transition-colors ml-1"

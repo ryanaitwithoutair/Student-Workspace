@@ -15,12 +15,21 @@
   --accent-emerald: #10b981;
   --accent-mint: #34d399;
   --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+  --surface-subtle: rgba(20, 21, 24, 0.72);
+  --surface-raised: rgba(29, 31, 35, 0.82);
+  --line-subtle: rgba(255, 255, 255, 0.09);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+}
+
+html {
+  background: #09090b;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -31,36 +40,65 @@ body {
   color: #ffffff !important;
   min-height: 100vh;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  background-image:
+    radial-gradient(circle at 50% -20%, rgba(16, 185, 129, 0.08), transparent 34rem),
+    linear-gradient(180deg, #0a0b0d 0%, #09090b 58%, #08090a 100%);
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  transition-timing-function: var(--ease-out);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 3px;
 }
 
 /* Glassmorphism obsidian panel styling */
 .glass-panel {
-  background: rgba(24, 24, 27, 0.8) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6) !important;
+  background: linear-gradient(145deg, rgba(29, 31, 35, 0.84), rgba(17, 18, 21, 0.78)) !important;
+  backdrop-filter: blur(18px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(135%) !important;
+  border: 1px solid var(--line-subtle) !important;
+  box-shadow: 0 18px 48px -28px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
   color: #ffffff !important;
+  transition: background 220ms var(--ease-out), border-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out), transform 220ms var(--ease-out);
 }
 
 .glass-panel-hover:hover {
-  background: rgba(39, 39, 42, 0.95) !important;
-  border-color: rgba(16, 185, 129, 0.5) !important;
+  background: linear-gradient(145deg, rgba(36, 39, 44, 0.9), rgba(20, 22, 25, 0.86)) !important;
+  border-color: rgba(52, 211, 153, 0.34) !important;
+  box-shadow: 0 22px 52px -28px rgba(0, 0, 0, 0.92), 0 0 0 1px rgba(16, 185, 129, 0.06) !important;
 }
 
 .glass-input {
-  background: rgba(18, 18, 21, 0.8) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: rgba(8, 9, 11, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.11) !important;
   color: #ffffff !important;
   font-weight: 500 !important;
   backdrop-filter: blur(12px) !important;
-  transition: all 0.2s ease !important;
+  transition: border-color 180ms var(--ease-out), background 180ms var(--ease-out), box-shadow 180ms var(--ease-out), transform 180ms var(--ease-out) !important;
 }
 
 .glass-input:focus {
   outline: none !important;
-  border-color: #10b981 !important;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25) !important;
+  background: rgba(9, 11, 12, 0.82) !important;
+  border-color: rgba(52, 211, 153, 0.75) !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.13) !important;
 }
 
 /* Text & Button Styling */
@@ -71,20 +109,77 @@ body {
 }
 
 .btn-emerald {
-  background: linear-gradient(135deg, #18181b 0%, #27272a 100%) !important;
-  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  background: linear-gradient(135deg, rgba(31, 37, 39, 0.96) 0%, rgba(24, 29, 31, 0.98) 100%) !important;
+  border: 1px solid rgba(52, 211, 153, 0.56) !important;
   color: #ffffff !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5) !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 10px 24px -16px rgba(0, 0, 0, 0.92), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  transition: transform 180ms var(--ease-out), background 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out) !important;
   cursor: pointer;
 }
 
 .btn-emerald:hover {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  border-color: #34d399 !important;
-  box-shadow: 0 6px 28px 0 rgba(16, 185, 129, 0.35) !important;
-  transform: translateY(-1px);
+  border-color: #6ee7b7 !important;
+  box-shadow: 0 16px 28px -14px rgba(16, 185, 129, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+  transform: translateY(-2px);
+}
+
+.btn-emerald:active {
+  transform: translateY(0) scale(0.985);
+  box-shadow: 0 8px 16px -12px rgba(16, 185, 129, 0.38) !important;
+}
+
+.nav-link {
+  position: relative;
+  padding: 0.45rem 0.2rem;
+  color: #a1a1aa;
+  transition: color 180ms var(--ease-out);
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  bottom: 0.05rem;
+  height: 1px;
+  border-radius: 999px;
+  background: #34d399;
+  transition: left 180ms var(--ease-out), right 180ms var(--ease-out);
+}
+
+.nav-link:hover {
+  color: #f4f4f5;
+}
+
+.nav-link:hover::after {
+  left: 0.2rem;
+  right: 0.2rem;
+}
+
+.landing-hero {
+  background:
+    radial-gradient(circle at 50% 16%, rgba(16, 185, 129, 0.11), transparent 24rem),
+    radial-gradient(circle at 16% 65%, rgba(10, 123, 91, 0.08), transparent 22rem);
+}
+
+.feature-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 42%);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(52, 211, 153, 0.28) !important;
 }
 
 /* Deep-Focus Mode (Full Interface Dimming) */
@@ -129,6 +224,15 @@ body {
   animation: popInSpring 0.52s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+@keyframes softEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: softEnter 360ms var(--ease-out) both;
+}
+
 /* Sound Wave Animation */
 @keyframes sound-wave {
   0%, 100% { height: 6px; }
@@ -157,4 +261,14 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(16, 185, 129, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
 }

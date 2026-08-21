@@ -26,31 +26,31 @@ export const LandingPage = () => {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative pt-20 pb-32 px-6 overflow-hidden">
+      <section className="landing-hero relative overflow-hidden px-5 pb-24 pt-16 sm:px-6 sm:pt-20 md:pb-32">
         {/* Background ambient lighting glow */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none"></div>
 
-        <div className="max-w-5xl mx-auto text-center space-y-8 relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel border border-neutral-700 text-xs font-semibold text-emerald-400">
+        <div className="relative z-10 mx-auto max-w-5xl space-y-7 text-center sm:space-y-8">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-3.5 py-2 text-xs font-semibold text-emerald-300 shadow-[0_12px_32px_-20px_rgba(16,185,129,0.75)]">
             <Sparkles className="w-4 h-4 text-emerald-400" />
             <span>Eliminate Distractions • Master Continuous Flow</span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white leading-tight">
-            A sanctuary for <br />
+          <h1 className="text-4xl font-extrabold leading-[1.04] tracking-[-0.045em] text-white sm:text-5xl md:text-7xl">
+            A sanctuary for{' '}
             <span className="emerald-gradient-text">deep, uninterrupted focus.</span>
           </h1>
 
-          <p className="max-w-2xl mx-auto text-lg md:text-xl text-neutral-300 font-normal leading-relaxed">
+          <p className="mx-auto max-w-2xl text-base font-normal leading-relaxed text-neutral-300 sm:text-lg md:text-xl">
             Evolve pairs customizable sensory spaces, procedural ambient audio soundscapes, and minimalist Pomodoro workflows into a serene workspace for original thought.
           </p>
 
           {/* Action CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <div className="flex flex-col items-center justify-center gap-3 pt-3 sm:flex-row sm:gap-4">
             {user ? (
               <button
                 onClick={() => navigate('/app')}
-                className="btn-emerald px-8 py-4 rounded-2xl text-base font-bold flex items-center justify-center gap-3 w-full sm:w-auto shadow-2xl"
+                className="btn-emerald flex w-full items-center justify-center gap-3 rounded-2xl px-7 py-3.5 text-base font-bold shadow-2xl sm:w-auto sm:px-8 sm:py-4"
               >
                 Open Your Focus Workspace
                 <ArrowRight className="w-5 h-5" />
@@ -60,7 +60,7 @@ export const LandingPage = () => {
 
                 <button
                   onClick={() => navigate('/login')}
-                  className="px-8 py-4 rounded-2xl glass-panel hover:bg-neutral-800 text-neutral-200 font-semibold text-base transition-all w-full sm:w-auto border border-neutral-700 flex items-center justify-center gap-2"
+                  className="btn-emerald flex w-full items-center justify-center gap-2 rounded-2xl px-7 py-3.5 text-base font-bold shadow-2xl sm:w-auto sm:px-8 sm:py-4"
                 >
                   <Lock className="w-4 h-4 text-emerald-400" />
                   Sign In to Sanctuary
@@ -70,23 +70,23 @@ export const LandingPage = () => {
 
             <a
               href="#preview"
-              className="px-6 py-4 rounded-2xl glass-panel hover:bg-neutral-800 text-neutral-300 font-semibold text-base transition-all w-full sm:w-auto border border-neutral-800"
+              className="glass-panel w-full rounded-2xl border border-white/[0.1] px-6 py-3.5 text-base font-semibold text-neutral-200 transition-all hover:-translate-y-0.5 hover:border-white/[0.2] hover:bg-white/[0.06] sm:w-auto sm:py-4"
             >
               Explore Workspace
             </a>
           </div>
 
-          <div className="pt-8 flex flex-wrap items-center justify-center gap-8 text-xs text-neutral-400 font-medium">
-            <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-400" /> 100% Free & Local Storage</span>
-            <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-400" /> Zero Audio Downloads</span>
-            <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-400" /> Instant Account Access</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 pt-7 text-xs font-medium text-neutral-400">
+            <span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-emerald-400" /> Private two-user workspace</span>
+            <span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-emerald-400" /> No audio downloads</span>
+            <span className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-emerald-400" /> Secure cloud sync</span>
           </div>
         </div>
       </section>
 
       {/* Preview Section */}
-      <section id="preview" className="py-20 px-6 max-w-7xl mx-auto w-full">
-        <div className="text-center space-y-3 mb-12">
+      <section id="preview" className="mx-auto w-full max-w-7xl scroll-mt-24 px-5 py-20 sm:px-6">
+        <div className="mb-12 space-y-3 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
             Designed for Cognitive Calm
           </h2>
@@ -96,8 +96,8 @@ export const LandingPage = () => {
         </div>
 
         {/* Live Mockup UI Container */}
-        <div className="glass-panel rounded-3xl p-4 md:p-8 border border-neutral-700 shadow-2xl relative overflow-hidden">
-          <div className="w-full rounded-2xl bg-neutral-900 border border-neutral-800 p-6 space-y-6">
+        <div className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/[0.11] p-3 shadow-2xl sm:p-4 md:p-7">
+          <div className="w-full space-y-6 rounded-[1.45rem] border border-white/[0.07] bg-[#0a0b0d]/80 p-5 sm:p-6">
             {/* Top Bar Mockup */}
             <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
               <div className="flex items-center gap-3">
@@ -107,9 +107,9 @@ export const LandingPage = () => {
                 <span className="text-xs text-neutral-400 font-mono ml-4">evolve.app/workspace/zen-forest</span>
               </div>
               <div className="flex items-center gap-3">
-                <button 
+                <button
                   onClick={() => toggleSound('rain')}
-                  className="px-3 py-1.5 rounded-lg bg-neutral-800 text-emerald-400 text-xs font-semibold flex items-center gap-2 border border-neutral-700"
+                  className="flex items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-3 py-1.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/[0.12]"
                 >
                   <Volume2 className="w-3.5 h-3.5" />
                   {activeSoundId === 'rain' ? 'Rain Playing' : 'Play Ambient Rain'}
@@ -120,7 +120,7 @@ export const LandingPage = () => {
             {/* Content Mockup Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Card 1: Spaces */}
-              <div className="glass-panel p-6 rounded-2xl border border-neutral-800 space-y-4">
+              <div className="feature-card glass-panel space-y-4 rounded-2xl border border-white/[0.08] p-6">
                 <div className="flex items-center gap-3 text-emerald-400">
                   <LayoutGrid className="w-5 h-5" />
                   <h3 className="font-bold text-sm text-white">Zen Forest Space</h3>
@@ -134,7 +134,7 @@ export const LandingPage = () => {
               </div>
 
               {/* Card 2: Timer */}
-              <div className="glass-panel p-6 rounded-2xl border border-neutral-800 space-y-4 flex flex-col items-center justify-center text-center">
+              <div className="feature-card glass-panel flex flex-col items-center justify-center space-y-4 rounded-2xl border border-white/[0.08] p-6 text-center">
                 <div className="flex items-center gap-3 text-emerald-400">
                   <Timer className="w-5 h-5" />
                   <h3 className="font-bold text-sm text-white">Pomodoro Timer</h3>
@@ -148,7 +148,7 @@ export const LandingPage = () => {
               </div>
 
               {/* Card 3: Wisdom */}
-              <div className="glass-panel p-6 rounded-2xl border border-neutral-800 space-y-4">
+              <div className="feature-card glass-panel space-y-4 rounded-2xl border border-white/[0.08] p-6">
                 <div className="flex items-center gap-3 text-emerald-400">
                   <Quote className="w-5 h-5" />
                   <h3 className="font-bold text-sm text-white">Daily Stoicism</h3>
@@ -164,7 +164,7 @@ export const LandingPage = () => {
       </section>
 
       {/* About Philosophy Section */}
-      <section id="about" className="py-20 px-6 max-w-5xl mx-auto w-full space-y-12">
+      <section id="about" className="mx-auto w-full max-w-5xl scroll-mt-24 space-y-12 px-5 py-20 sm:px-6">
         <div className="text-center space-y-4">
           <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
             The Philosophy of Deep Work
@@ -174,8 +174,8 @@ export const LandingPage = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="glass-panel p-8 rounded-3xl border border-neutral-800 space-y-4">
+        <div id="features" className="grid scroll-mt-24 grid-cols-1 gap-8 md:grid-cols-3">
+          <div className="feature-card glass-panel space-y-4 rounded-3xl border border-white/[0.08] p-7 sm:p-8">
             <div className="w-12 h-12 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-emerald-400">
               <ShieldCheck className="w-6 h-6" />
             </div>
@@ -185,7 +185,7 @@ export const LandingPage = () => {
             </p>
           </div>
 
-          <div className="glass-panel p-8 rounded-3xl border border-neutral-800 space-y-4">
+          <div className="feature-card glass-panel space-y-4 rounded-3xl border border-white/[0.08] p-7 sm:p-8">
             <div className="w-12 h-12 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-emerald-400">
               <Volume2 className="w-6 h-6" />
             </div>
@@ -195,7 +195,7 @@ export const LandingPage = () => {
             </p>
           </div>
 
-          <div className="glass-panel p-8 rounded-3xl border border-neutral-800 space-y-4">
+          <div className="feature-card glass-panel space-y-4 rounded-3xl border border-white/[0.08] p-7 sm:p-8">
             <div className="w-12 h-12 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-emerald-400">
               <Zap className="w-6 h-6" />
             </div>
@@ -208,25 +208,25 @@ export const LandingPage = () => {
       </section>
 
       {/* Authentication Call To Action Section */}
-      <section className="py-20 px-6 max-w-5xl mx-auto w-full text-center">
-        <div className="glass-panel rounded-3xl p-10 md:p-14 border border-neutral-700 space-y-6 relative overflow-hidden">
+      <section className="mx-auto w-full max-w-5xl px-5 py-20 text-center sm:px-6">
+        <div className="glass-panel relative overflow-hidden space-y-6 rounded-[2rem] border border-emerald-400/18 p-8 sm:p-10 md:p-14">
           <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center mx-auto text-emerald-400 shadow-xl">
             <UserCheck className="w-7 h-7" />
           </div>
 
           <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-            Ready to enter your personal flow state?
+            Ready for your next focused session?
           </h2>
 
           <p className="max-w-xl mx-auto text-sm text-neutral-300 leading-relaxed">
-            Create your account to save custom image environments, bookmark links, notes, and task schedules.
+            Sign in to continue with your environments, focus history, notes, and task schedule.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
 
             <button
               onClick={() => navigate('/login')}
-              className="px-8 py-3.5 rounded-xl glass-panel hover:bg-neutral-800 text-white font-semibold text-sm transition-all w-full sm:w-auto border border-neutral-700"
+              className="btn-emerald w-full rounded-xl px-8 py-3.5 text-sm font-bold sm:w-auto"
             >
               Sign In to Existing Account
             </button>

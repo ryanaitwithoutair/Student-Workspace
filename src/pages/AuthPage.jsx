@@ -46,22 +46,22 @@ export const AuthPage = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#09090b] p-4 text-white sm:p-6">
       {/* Background ambient lighting */}
       <div className="absolute -top-36 -right-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-[110px] pointer-events-none"></div>
       <div className="absolute -bottom-40 -left-20 w-80 h-80 bg-cyan-500/5 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <section aria-labelledby="auth-heading" className="w-full max-w-md glass-panel rounded-3xl p-6 sm:p-8 border border-neutral-700 shadow-2xl relative z-10 animate-fadeIn">
+      <section aria-labelledby="auth-heading" className="relative z-10 w-full max-w-md animate-fadeIn rounded-[2rem] border border-white/[0.11] bg-[linear-gradient(145deg,rgba(27,29,33,0.9),rgba(15,16,19,0.88))] p-6 shadow-[0_30px_80px_-36px_rgba(0,0,0,1)] backdrop-blur-2xl sm:p-8">
         {/* Logo & Header */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center gap-3 group">
-            <div className="w-12 h-12 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center shadow-lg transition-all group-hover:scale-105 group-hover:border-emerald-500/50">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.06] shadow-lg shadow-emerald-500/[0.08] transition-all group-hover:scale-105 group-hover:border-emerald-400/50">
               <Leaf className="w-6 h-6 text-emerald-400" />
             </div>
           </Link>
 
           <div>
-            <h1 id="auth-heading" className="mt-5 text-2xl sm:text-[1.7rem] font-bold text-white tracking-tight">
+            <h1 id="auth-heading" className="mt-5 text-2xl font-bold tracking-tight text-white sm:text-[1.7rem]">
               Welcome back to Evolve
             </h1>
             <p className="text-sm text-neutral-400 mt-2 font-medium">
@@ -129,7 +129,7 @@ export const AuthPage = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full btn-emerald py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-emerald flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? 'Authenticating...' : 'Sign in to workspace'}
             {!isLoading && <ArrowRight className="w-4 h-4" />}
