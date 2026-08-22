@@ -24,15 +24,22 @@ export const PartyProvider = ({ children }) => {
   // Track previous state to avoid broadcasting when not needed
   const prevState = useRef({ isTimerRunning, timerEndsAt, timeLeft, timerMode, customMinutes });
 
+  // Keep fresh references of callbacks without triggering effects
+  const callbacks = useRef({ syncTimerState, showToast, user });
+  useEffect(() => {
+    callbacks.current = { syncTimerState, showToast, user };
+  }, [syncTimerState, showToast, user]);
+
   useEffect(() => {
     if (!partyId || !isSupabaseConfigured) return;
 
-    const username = user?.email?.split('@')[0] || `User_${Math.floor(Math.random() * 1000)}`;
+    const currentUser = callbacks.current.user;
+    const username = currentUser?.email?.split('@')[0] || `User_${Math.floor(Math.random() * 1000)}`;
 
     const channel = supabase.channel(`party-${partyId}`, {
       config: {
         presence: {
-          key: user?.id || `anon-${Math.floor(Math.random() * 10000)}`,
+          key: currentUser?.id || `anon-${Math.floor(Math.random() * 10000)}`,
         },
       },
     });
@@ -52,20 +59,21 @@ export const PartyProvider = ({ children }) => {
       })
       .on('broadcast', { event: 'sync_timer' }, ({ payload }) => {
         if (!isHost) {
-          syncTimerState(payload);
+          callbacks.current.syncTimerState(payload);
         }
       })
       .subscribe(async (status) => {
+      .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await channel.track({
-            user_id: user?.id,
+            user_id: currentUser?.id,
             username: username,
             is_host: isHost,
             joined_at: new Date().toISOString(),
           });
           
           if (!isHost) {
-             showToast('Joined party successfully');
+             callbacks.current.showToast('Joined party successfully');
           }
         }
       });
@@ -74,7 +82,8 @@ export const PartyProvider = ({ children }) => {
       channel.unsubscribe();
       channelRef.current = null;
     };
-  }, [partyId, isHost, user, syncTimerState]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyId, isHost]);
 
   // Host broadcasts timer changes
   useEffect(() => {
