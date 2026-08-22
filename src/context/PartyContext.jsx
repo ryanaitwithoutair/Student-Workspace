@@ -98,6 +98,10 @@ export const PartyProvider = ({ children }) => {
   }, [isHost, partyId, isTimerRunning, timerEndsAt, timeLeft, timerMode, customMinutes]);
 
   const createParty = () => {
+    if (!isSupabaseConfigured) {
+      showToast('Supabase is not configured. Add environment variables to use the Party system.', 'error');
+      return;
+    }
     const newPartyId = Math.random().toString(36).substring(2, 8).toUpperCase();
     setIsHost(true);
     setPartyId(newPartyId);
@@ -105,6 +109,10 @@ export const PartyProvider = ({ children }) => {
   };
 
   const joinParty = (code) => {
+    if (!isSupabaseConfigured) {
+      showToast('Supabase is not configured. Add environment variables to use the Party system.', 'error');
+      return;
+    }
     if (!code || code.trim().length === 0) return;
     setIsHost(false);
     setPartyId(code.trim().toUpperCase());
