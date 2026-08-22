@@ -193,9 +193,12 @@ export const PartyView = () => {
   };
 
   const sendInvite = () => {
-    const targetEmail = party.partner?.partner_email || recipientEmail.trim();
+    const isAryan = user?.email?.toLowerCase() === 'aryan.tamhane.2011@gmail.com';
+    const fallbackEmail = isAryan ? 'vaibhavibadhe123@gmail.com' : 'aryan.tamhane.2011@gmail.com';
+    const targetEmail = party.partner?.partner_email || fallbackEmail;
+
     if (!targetEmail) {
-      setError('Enter your partner’s approved email first.');
+      setError('Could not determine partner email.');
       return;
     }
 
@@ -346,30 +349,26 @@ export const PartyView = () => {
                 {!partnerOnline && <p className="mt-3 text-xs text-neutral-500">Your partner needs to have the workspace open before you can invite them.</p>}
               </div>
             ) : (
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">One-time connection</p>
-                <h3 className="mt-3 text-2xl font-extrabold text-white">Invite your partner while they’re online.</h3>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-400">Enter the email for their already-approved Evolve account. It is used only to create this private pairing; no code or link is created.</p>
-                <label className="mt-6 block text-xs font-bold uppercase tracking-[0.14em] text-neutral-400" htmlFor="partner-email">Partner’s approved email</label>
-                <input
-                  id="partner-email"
-                  value={recipientEmail}
-                  onChange={(event) => setRecipientEmail(event.target.value.slice(0, 254))}
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  placeholder="partner@example.com"
-                  className="mt-2 w-full rounded-xl border border-white/[0.1] bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15"
-                />
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {INVITE_DURATIONS.map((minutes) => (
-                    <button type="button" key={minutes} onClick={() => setDuration(minutes)} className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition-all ${duration === minutes ? 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300' : 'border-white/[0.09] bg-white/[0.03] text-neutral-400 hover:border-white/[0.18] hover:text-white'}`}>{formatDuration(minutes)}</button>
-                  ))}
-                </div>
-                <ActionButton onClick={sendInvite} disabled={Boolean(action) || !recipientEmail.trim()} className="mt-6 w-full border-emerald-400/45 bg-emerald-500 text-[#03261c] hover:bg-emerald-300 sm:w-auto">
-                  <ArrowRight className="h-4 w-4" /> {action === 'send' ? 'Checking availability…' : `Invite for ${formatDuration(duration)}`}
-                </ActionButton>
-              </div>
+              (() => {
+                const isAryan = user?.email?.toLowerCase() === 'aryan.tamhane.2011@gmail.com';
+                const partnerName = isAryan ? 'Vaibhavi' : 'Aryan';
+                
+                return (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">One-time connection</p>
+                    <h3 className="mt-3 text-2xl font-extrabold text-white">Invite your partner while they’re online.</h3>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-neutral-400">This will create a private pairing with {partnerName}. No code or link is needed.</p>
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {INVITE_DURATIONS.map((minutes) => (
+                        <button type="button" key={minutes} onClick={() => setDuration(minutes)} className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition-all ${duration === minutes ? 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300' : 'border-white/[0.09] bg-white/[0.03] text-neutral-400 hover:border-white/[0.18] hover:text-white'}`}>{formatDuration(minutes)}</button>
+                      ))}
+                    </div>
+                    <ActionButton onClick={sendInvite} disabled={Boolean(action)} className="mt-6 w-full border-emerald-400/45 bg-emerald-500 text-[#03261c] hover:bg-emerald-300 sm:w-auto">
+                      <ArrowRight className="h-4 w-4" /> {action === 'send' ? 'Checking availability…' : `Invite ${partnerName} for ${formatDuration(duration)}`}
+                    </ActionButton>
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>

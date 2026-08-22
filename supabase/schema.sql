@@ -543,8 +543,8 @@ $$;
 
 -- One-time pairing setup: replace both emails, then run this after both of you
 -- have signed in at least once. No room code is ever created or displayed.
---
--- insert into public.party_allowed_users (user_id)
--- select id from auth.users
--- where lower(email) in ('you@example.com', 'your-partner@example.com')
--- on conflict (user_id) do nothing;
+
+insert into public.party_allowed_users (user_id)
+select id from auth.users
+where lower(email) in ('aryan.tamhane.2011@gmail.com', 'vaibhavibadhe123@gmail.com')
+on conflict (user_id) do nothing;
