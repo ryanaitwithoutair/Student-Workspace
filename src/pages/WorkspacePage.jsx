@@ -64,8 +64,6 @@ export const WorkspacePage = () => {
         return <AnalyticsView />;
       case 'analytics':
         return <AnalyticsView />;
-      case 'party':
-        return <PartyView />;
       default:
         return <TimerView />;
     }
