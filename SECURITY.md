@@ -9,6 +9,7 @@ This repository intentionally exposes only the Supabase **anon** key in the brow
 3. Set Supabase **Site URL** to the exact production Vercel URL. Keep the Supabase redirect allow-list to that URL and required preview URLs only; do not use broad wildcards.
 4. In Vercel, add only `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Never place `SUPABASE_SERVICE_ROLE_KEY`, a database password, or any private API key in a `VITE_*` variable.
 5. Enable MFA for both Supabase users and use unique, long passwords. Revoke sessions and rotate credentials immediately if a device is lost or a key appears in Git history.
+6. To enable **Focus Together**, run the one-time `party_allowed_users` query at the bottom of `supabase/schema.sql` after both existing accounts have signed in. Replace the placeholder emails with your own two accounts. The database rejects a third approved account.
 
 ## What the application enforces
 
@@ -16,6 +17,7 @@ This repository intentionally exposes only the Supabase **anon** key in the brow
 - Tailwind is compiled at build time; no third-party runtime script is loaded.
 - Workspace data loaded from local storage or Supabase is shaped and bounded before it reaches the UI. Bookmark URLs must be HTTPS, and background images are restricted to the curated Unsplash host.
 - RLS limits each authenticated user to their own workspace and sessions. Database constraints cap workspace state at 256 KiB, focus entries at 1–1,440 minutes, and each user at 5,000 sessions.
+- Party sessions have no room codes or public join links. Only the two allow-listed accounts can create or see invitations; only the recipient can accept one; and shared-session writes use narrowly scoped database functions. A partner can be invited only after their app has sent a recent presence heartbeat.
 
 ## Deliberate trust boundary
 

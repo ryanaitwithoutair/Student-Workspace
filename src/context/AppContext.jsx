@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, useRef } from 'react';
 import { soundEngine } from '../audio/soundGenerator';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { streakStats, minutesFromSessions, localDateKey } from '../utils/focusData';
@@ -313,13 +313,13 @@ export const AppProvider = ({ children }) => {
   // Toast notifications
   const [toast, setToast] = useState(null);
 
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
-  };
+  }, []);
 
-  const dismissToast = () => {
+  const dismissToast = useCallback(() => {
     setToast(null);
-  };
+  }, []);
 
   // Auth User
   const [user, setUser] = useState(null);
@@ -357,6 +357,62 @@ export const AppProvider = ({ children }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // A lightweight heartbeat lets an approved partner invite this account only
+  // while the workspace is open. The database accepts updates only for the
+  // authenticated user's own presence row.
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured) return undefined;
+
+    let isActive = true;
+    const updatePresence = async () => {
+      const { error } = await supabase.from('party_presence').upsert({
+        user_id: user.id,
+        heartbeat_at: new Date().toISOString(),
+      });
+
+      // The party tables may not have been installed yet. Keep this silent so
+      // the regular workspace continues working until the setup is complete.
+      if (error && isActive && error.code !== '42P01' && error.code !== 'PGRST205') {
+        console.warn('Unable to update party presence:', error.message);
+      }
+    };
+
+    void updatePresence();
+    const interval = window.setInterval(() => { void updatePresence(); }, 30_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void updatePresence();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isActive = false;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.id]);
+
+  // Make a received invite visible even when the recipient is currently using
+  // another workspace view. Realtime still respects the invitation table's RLS.
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured) return undefined;
+
+    const channel = supabase
+      .channel(`party-inbox-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'party_invitations', filter: `recipient_id=eq.${user.id}` },
+        (payload) => {
+          const invite = payload.new;
+          if (invite?.status === 'pending' && Number.isInteger(invite.duration_minutes)) {
+            showToast(`Your partner invited you to ${invite.duration_minutes} minutes of shared focus.`);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [user?.id, showToast]);
 
   // Active Workspace Tab — Focus Timer opens FIRST by default
   const [activeTab, setActiveTab] = useState('timer');
@@ -523,7 +579,7 @@ export const AppProvider = ({ children }) => {
 
     void loadWorkspace();
     return () => { isMounted = false; };
-  }, [user?.id]);
+  }, [user?.id, showToast]);
 
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id) return undefined;
@@ -601,7 +657,7 @@ export const AppProvider = ({ children }) => {
       showToast(`Achievement unlocked: ${fresh[0].label}`);
     }, 0);
     return () => window.clearTimeout(announceAchievement);
-  }, [focusSessions, achievements, streak.best, totalLoggedFocusMinutes]);
+  }, [focusSessions, achievements, streak.best, totalLoggedFocusMinutes, showToast]);
   useEffect(() => { safeLocalSet('evolve_checklists', JSON.stringify(checklists)); }, [checklists]);
   useEffect(() => { safeLocalSet('evolve_timer_preferences', JSON.stringify(timerPreferences)); }, [timerPreferences]);
   useEffect(() => { safeLocalSet('evolve_timer_mode', timerMode); safeLocalSet('evolve_custom_minutes', String(customMinutes)); safeLocalSet('evolve_time_left', String(timeLeft)); safeLocalSet('evolve_timer_ends_at', String(timerEndsAt || '')); }, [timerMode, customMinutes, timeLeft, timerEndsAt]);

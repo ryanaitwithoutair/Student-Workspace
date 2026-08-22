@@ -49,6 +49,8 @@ export const WorkspacePage = () => {
     switch (activeTab) {
       case 'timer':
         return <TimerView />;
+      case 'party':
+        return <PartyView />;
       case 'spaces':
         return <SpacesView />;
       case 'calendar':
