@@ -941,25 +941,28 @@ export const AppProvider = ({ children }) => {
     focusSegmentStartRemainingRef.current = null;
   };
 
+  const completeTimerRef = useRef(completeTimer);
+  useEffect(() => {
+    completeTimerRef.current = completeTimer;
+  }, [completeTimer]);
+
   useEffect(() => {
     if (!isTimerRunning || !timerEndsAt) return undefined;
     const tick = () => {
       const remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
       setTimeLeft(remaining);
-      if (remaining === 0) completeTimer();
+      if (remaining === 0) completeTimerRef.current();
     };
     tick();
     const interval = window.setInterval(tick, 500);
     return () => window.clearInterval(interval);
-  // completeTimer intentionally reads the current timer settings without recreating the interval on every tick.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTimerRunning, timerEndsAt, timerMode, timerSoundVolume, isTimerSoundEnabled]);
+  }, [isTimerRunning, timerEndsAt]);
 
   useEffect(() => {
     if (!timerEndsAt) return;
     const resumeTimer = window.setTimeout(() => {
       const remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
-      if (remaining === 0) completeTimer();
+      if (remaining === 0) completeTimerRef.current();
       else { setTimeLeft(remaining); setIsTimerRunning(true); }
     }, 0);
     return () => window.clearTimeout(resumeTimer);
