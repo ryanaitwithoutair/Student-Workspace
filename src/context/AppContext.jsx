@@ -957,6 +957,24 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const syncTimerState = ({ isTimerRunning: remoteIsRunning, timerEndsAt: remoteEndsAt, timeLeft: remoteTimeLeft, timerMode: remoteMode, customMinutes: remoteCustomMinutes }) => {
+    setTimerMode(remoteMode);
+    if (remoteCustomMinutes) {
+      setCustomMinutes(remoteCustomMinutes);
+    }
+    
+    // Always align timeLeft and endsAt to match host
+    setTimeLeft(remoteTimeLeft);
+    setTimerEndsAt(remoteEndsAt);
+    
+    if (remoteIsRunning !== isTimerRunning) {
+      if (remoteIsRunning && !hasStartedSessionRef.current) {
+         hasStartedSessionRef.current = true;
+      }
+      setIsTimerRunning(remoteIsRunning);
+    }
+  };
+
   // Reminders / Calendar Tasks Management
   const addReminder = (title, time, priority = 'medium', date = new Date().toISOString().split('T')[0], notes = '') => {
     const safeTitle = truncateText(title, '', 160).trim();
@@ -1093,6 +1111,8 @@ export const AppProvider = ({ children }) => {
       startTimer,
       pauseTimer,
       resetTimer,
+      syncTimerState,
+      timerEndsAt,
       sessionsCompleted,
       totalLoggedFocusMinutes,
       focusSessions,

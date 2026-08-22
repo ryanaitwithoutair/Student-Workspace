@@ -12,6 +12,7 @@ import { FlipClockWidget } from '../components/workspace/FlipClockWidget';
 import { TasksWidget } from '../components/workspace/TasksWidget';
 import { ChecklistsView } from '../components/workspace/ChecklistsView';
 import { AnalyticsView } from '../components/workspace/AnalyticsView';
+import { PartyView } from '../components/workspace/PartyView';
 import { getSpaceOverlayOpacity } from '../utils/overlay';
 import { isTrustedBackgroundImageUrl } from '../utils/security';
 
@@ -61,6 +62,8 @@ export const WorkspacePage = () => {
         return <AnalyticsView />;
       case 'analytics':
         return <AnalyticsView />;
+      case 'party':
+        return <PartyView />;
       default:
         return <TimerView />;
     }

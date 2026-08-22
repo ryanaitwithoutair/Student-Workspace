@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { PartyProvider } from './context/PartyContext';
 import { RouterView } from './router/router';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
@@ -23,8 +24,10 @@ export function App() {
 
   return (
     <AppProvider>
-      <RouterView routes={routes} />
-      <ToastContainer />
+      <PartyProvider>
+        <RouterView routes={routes} />
+        <ToastContainer />
+      </PartyProvider>
     </AppProvider>
   );
 }

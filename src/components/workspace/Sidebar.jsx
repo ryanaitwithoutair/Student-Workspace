@@ -8,7 +8,8 @@ import {
   ChevronRight, 
   Leaf,
   LogOut,
-  CheckSquare, Activity
+  CheckSquare, Activity,
+  Users
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { useNavigate } from '../../router/router';
@@ -32,6 +33,7 @@ export const Sidebar = () => {
     { id: 'checklists', label: 'Checklists', icon: CheckSquare },
     { id: 'analytics', label: 'Analytics', icon: Activity },
     { id: 'sounds', label: 'Sounds', icon: Volume2 },
+    { id: 'party', label: 'Party', icon: Users },
   ];
 
   return (
