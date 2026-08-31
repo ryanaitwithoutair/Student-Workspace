@@ -3,6 +3,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { RouterView } from './router/router';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { WorkspacePage } from './pages/WorkspacePage';
 import { Toast } from './components/common/Toast';
 
@@ -17,6 +18,7 @@ export function App() {
     '/': <LandingPage />,
     '/auth': <AuthPage />,
     '/login': <AuthPage />,
+    '/reset-password': <ResetPasswordPage />,
     '/app': <WorkspacePage />,
     '*': <LandingPage />
   };

@@ -55,7 +55,6 @@ export const PartyView = () => {
   const { showToast, user } = useApp();
   const [party, setParty] = useState({ partner: null, invitations: [], sessions: [] });
   const [partnerPresence, setPartnerPresence] = useState(null);
-  const [recipientEmail, setRecipientEmail] = useState('');
   const [duration, setDuration] = useState(25);
   const [isLoading, setIsLoading] = useState(true);
   const [action, setAction] = useState('');

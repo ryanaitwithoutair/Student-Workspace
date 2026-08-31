@@ -4,7 +4,7 @@ import { Leaf, Lock, Mail, ArrowRight, Eye, EyeOff, ShieldCheck } from '../compo
 import { useApp } from '../context/AppContext';
 
 export const AuthPage = () => {
-  const { login, user, isAuthLoading } = useApp();
+  const { login, requestPasswordReset, user, isAuthLoading } = useApp();
   const navigate = useNavigate();
 
   // If already logged in, redirect to app
@@ -19,23 +19,31 @@ export const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResetRequest, setIsResetRequest] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setNotice('');
 
     if (!email.includes('@')) {
       setError('Please enter a valid email address.');
       return;
     }
-    if (password.length < 6) {
+    if (!isResetRequest && password.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;
     }
 
     setIsLoading(true);
     try {
+      if (isResetRequest) {
+        await requestPasswordReset(email.trim());
+        setNotice('If an account exists for this email, a recovery link has been sent. Check your inbox and use the newest email only.');
+        return;
+      }
       await login(email.trim(), password);
       navigate('/app');
     } catch (err) {
@@ -61,11 +69,9 @@ export const AuthPage = () => {
           </Link>
 
           <div>
-            <h1 id="auth-heading" className="mt-5 text-2xl font-bold tracking-tight text-white sm:text-[1.7rem]">
-              Welcome back to Evolve
-            </h1>
+            <h1 id="auth-heading" className="mt-5 text-2xl font-bold tracking-tight text-white sm:text-[1.7rem]">{isResetRequest ? 'Reset your password' : 'Welcome back to Evolve'}</h1>
             <p className="text-sm text-neutral-400 mt-2 font-medium">
-              Sign in to access your focus workspace.
+              {isResetRequest ? 'We’ll send a secure one-time recovery link.' : 'Sign in to access your focus workspace.'}
             </p>
           </div>
         </div>
@@ -76,6 +82,7 @@ export const AuthPage = () => {
             {error}
           </div>
         )}
+        {notice && <div role="status" className="mt-6 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3.5 text-center text-sm font-medium text-emerald-100 animate-fadeIn">{notice}</div>}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5 mt-7">
@@ -98,7 +105,7 @@ export const AuthPage = () => {
             </div>
           </div>
 
-          <div>
+          {!isResetRequest && <div>
             <label htmlFor="password" className="block text-sm font-semibold text-neutral-200 mb-2">Password</label>
             <div className="relative">
               <Lock aria-hidden="true" className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -124,17 +131,26 @@ export const AuthPage = () => {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-          </div>
+          </div>}
 
           <button
             type="submit"
             disabled={isLoading}
             className="btn-emerald flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isLoading ? 'Authenticating...' : 'Sign in to workspace'}
+            {isLoading ? (isResetRequest ? 'Sending recovery email...' : 'Authenticating...') : (isResetRequest ? 'Send recovery email' : 'Sign in to workspace')}
             {!isLoading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={() => { setIsResetRequest((value) => !value); setError(''); setNotice(''); }}
+          disabled={isLoading}
+          className="mt-5 w-full text-center text-sm font-semibold text-emerald-300 transition-colors hover:text-emerald-200 disabled:opacity-50"
+        >
+          {isResetRequest ? 'Back to sign in' : 'Forgot your password?'}
+        </button>
 
         {/* Footer text */}
         <div className="flex items-center justify-center gap-1.5 text-xs text-neutral-400 font-medium mt-7 pt-5 border-t border-neutral-800">

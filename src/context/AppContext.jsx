@@ -14,12 +14,45 @@ import {
   truncateText,
 } from '../utils/security';
 const AppContext = createContext();
+const PASSWORD_RECOVERY_FLAG = 'evolve_password_recovery';
 
-const getAuthErrorMessage = (error) => {
-  if (/fetch|network/i.test(error?.message || '')) {
+const getAuthErrorMessage = (error, fallback = 'Unable to sign in with those credentials.') => {
+  const message = String(error?.message || '').toLowerCase();
+  if (error?.status === 540 || /project.*paused/.test(message)) {
+    return 'Your Supabase project is paused. Resume it in the Supabase dashboard, then try again.';
+  }
+  if (/invalid api key|api key.*invalid/.test(message)) {
+    return 'Supabase configuration is invalid. Check the Vercel Project URL and anon key, then redeploy.';
+  }
+  if (/email.*not.*confirmed/.test(message)) {
+    return 'Confirm your email address before signing in.';
+  }
+  if (/rate limit|too many requests/.test(message)) {
+    return 'Too many attempts. Please wait a few minutes before trying again.';
+  }
+  if (/fetch|network|failed to fetch/.test(message)) {
     return 'Unable to reach Supabase. Verify VITE_SUPABASE_URL in Vercel uses your exact active Project URL.';
   }
-  return 'Unable to sign in with those credentials.';
+  return fallback;
+};
+
+const isRecoveryCallback = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const queryParams = new URLSearchParams(window.location.search);
+    return hashParams.get('type') === 'recovery' || queryParams.get('type') === 'recovery';
+  } catch {
+    return false;
+  }
+};
+
+const readPasswordRecoveryFlag = () => {
+  try {
+    return sessionStorage.getItem(PASSWORD_RECOVERY_FLAG) === 'true';
+  } catch {
+    return false;
+  }
 };
 
 const DEFAULT_SPACES = [
@@ -325,7 +358,32 @@ export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(isSupabaseConfigured);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(readPasswordRecoveryFlag);
   const workspaceLoadedForUserRef = useRef(null);
+
+  const beginPasswordRecovery = useCallback(() => {
+    try {
+      sessionStorage.setItem(PASSWORD_RECOVERY_FLAG, 'true');
+    } catch {
+      // The recovery session from Supabase still protects this flow if browser
+      // storage is unavailable.
+    }
+    setIsPasswordRecovery(true);
+
+    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/reset-password')) {
+      window.history.replaceState(null, document.title, `${window.location.pathname}#/reset-password`);
+      window.dispatchEvent(new Event('hashchange'));
+    }
+  }, []);
+
+  const clearPasswordRecovery = useCallback(() => {
+    try {
+      sessionStorage.removeItem(PASSWORD_RECOVERY_FLAG);
+    } catch {
+      // Nothing further is required when session storage is unavailable.
+    }
+    setIsPasswordRecovery(false);
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -337,7 +395,10 @@ export const AppProvider = ({ children }) => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
-        if (isMounted) setUser(session?.user ?? null);
+        if (isMounted) {
+          setUser(session?.user ?? null);
+          if (session && isRecoveryCallback()) beginPasswordRecovery();
+        }
       } catch (error) {
         console.error('Unable to restore the Supabase session:', error);
         if (isMounted) setUser(null);
@@ -348,15 +409,17 @@ export const AppProvider = ({ children }) => {
 
     void loadSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      setUser(session?.user ?? null);
+      if (event === 'PASSWORD_RECOVERY' && session) beginPasswordRecovery();
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [beginPasswordRecovery]);
 
   // A lightweight heartbeat lets an approved partner invite this account only
   // while the workspace is open. The database accepts updates only for the
@@ -735,6 +798,36 @@ export const AppProvider = ({ children }) => {
       showToast(authError.message, 'error');
       throw authError;
     }
+    return data;
+  };
+
+  const requestPasswordReset = async (email) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured. Add the Supabase environment variables and redeploy.');
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      const authError = new Error(getAuthErrorMessage(error, 'Unable to send a recovery email. Please try again.'));
+      showToast(authError.message, 'error');
+      throw authError;
+    }
+  };
+
+  const updatePasswordFromRecovery = async (password) => {
+    if (!isPasswordRecovery) {
+      throw new Error('This password recovery session is no longer active. Request a new recovery email.');
+    }
+
+    const { data, error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      const authError = new Error(getAuthErrorMessage(error, 'Unable to set the new password. Request another recovery email and try again.'));
+      showToast(authError.message, 'error');
+      throw authError;
+    }
+
+    clearPasswordRecovery();
+    showToast('Password updated. You are signed in.');
     return data;
   };
 
@@ -1127,6 +1220,10 @@ export const AppProvider = ({ children }) => {
       isAuthLoading,
       isWorkspaceLoading,
       login,
+      requestPasswordReset,
+      isPasswordRecovery,
+      updatePasswordFromRecovery,
+      clearPasswordRecovery,
       logout,
       activeTab,
       setActiveTab,
