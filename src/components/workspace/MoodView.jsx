@@ -1,14 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { Calendar, CheckCircle2, Heart, Sparkles } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
-import { localDateKey } from '../../utils/focusData';
+import { dayTotals, formatFocusTime, localDateKey } from '../../utils/focusData';
 
 const DAY_MS = 86_400_000;
 
 const dateBeforeToday = (offset) => localDateKey(Date.now() - (offset * DAY_MS));
 
 export const MoodView = () => {
-  const { moodEntries, moodOptions, recordMood } = useApp();
+  const { moodEntries, moodOptions, recordMood, focusSessions } = useApp();
   const today = localDateKey();
   const moodsByDate = useMemo(() => new Map(moodEntries.map((entry) => [entry.date, entry])), [moodEntries]);
   const todayEntry = moodsByDate.get(today);
@@ -25,6 +25,19 @@ export const MoodView = () => {
     : null;
   const todayOption = moodOptions.find((option) => option.id === todayEntry?.mood);
   const recentEntries = [...moodEntries].slice(-5).reverse();
+  const focusByDay = useMemo(() => dayTotals(focusSessions), [focusSessions]);
+  const moodFocusPatterns = useMemo(() => moodOptions.map((option) => {
+    const entries = moodEntries.filter((entry) => entry.mood === option.id);
+    const focusMinutes = entries.reduce((total, entry) => total + (focusByDay[entry.date] || 0), 0);
+    return {
+      ...option,
+      checkIns: entries.length,
+      averageFocusMinutes: entries.length ? focusMinutes / entries.length : 0,
+    };
+  }).filter((pattern) => pattern.checkIns > 0), [focusByDay, moodEntries, moodOptions]);
+  const clearestPattern = [...moodFocusPatterns]
+    .filter((pattern) => pattern.checkIns >= 2)
+    .sort((first, second) => second.averageFocusMinutes - first.averageFocusMinutes)[0];
 
   const submitCheckIn = (event) => {
     event.preventDefault();
@@ -70,6 +83,11 @@ export const MoodView = () => {
       <section className="glass-panel rounded-3xl border border-neutral-800 p-5 sm:p-6">
         <div className="flex items-center gap-2"><Calendar className="h-5 w-5 text-emerald-400" /><div><h2 className="font-bold text-white">Recent check-ins</h2><p className="mt-0.5 text-xs text-neutral-400">Your mood history stays private to your account.</p></div></div>
         <div className="mt-5 space-y-3">{recentEntries.map((entry) => { const option = moodOptions.find((mood) => mood.id === entry.mood); return <article key={entry.date} className="flex gap-3 rounded-2xl border border-neutral-800 bg-black/10 p-4"><span className="text-2xl" aria-hidden="true">{option?.emoji}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-between gap-x-3"><h3 className="text-sm font-bold text-white">{option?.label}</h3><time className="text-xs text-neutral-500" dateTime={entry.date}>{new Date(`${entry.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></div>{entry.note && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-neutral-300">{entry.note}</p>}</div></article>; })}{!recentEntries.length && <div className="rounded-2xl border border-dashed border-neutral-700 p-8 text-center text-sm text-neutral-500">Your check-ins will appear here after you save your first one.</div>}</div>
+      </section>
+
+      <section className="glass-panel rounded-3xl border border-neutral-800 p-5 sm:p-6">
+        <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/[.07]"><Sparkles className="h-5 w-5 text-emerald-400" /></div><div><h2 className="font-bold text-white">Focus & mood</h2><p className="mt-1 text-xs text-neutral-400">A gentle reflection on your logged focus time — not a measure of your worth or productivity.</p></div></div>
+        {moodFocusPatterns.length ? <><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{moodFocusPatterns.map((pattern) => <div key={pattern.id} className="rounded-2xl border border-neutral-800 bg-black/10 p-4"><div className="flex items-center gap-2"><span className="text-xl">{pattern.emoji}</span><span className="text-sm font-bold text-white">{pattern.label}</span></div><p className="mt-3 text-xl font-bold text-white">{formatFocusTime(pattern.averageFocusMinutes)}</p><p className="mt-1 text-xs text-neutral-500">average focus · {pattern.checkIns} {pattern.checkIns === 1 ? 'check-in' : 'check-ins'}</p></div>)}</div>{clearestPattern && <p className="mt-4 rounded-xl border border-emerald-400/15 bg-emerald-400/[.045] p-3 text-sm leading-6 text-neutral-300">Across <span className="font-bold text-white">{clearestPattern.checkIns} {clearestPattern.label.toLowerCase()} check-ins</span>, you logged an average of <span className="font-bold text-white">{formatFocusTime(clearestPattern.averageFocusMinutes)}</span> of focus. Patterns become more useful as you keep checking in.</p>}</> : <div className="mt-5 rounded-2xl border border-dashed border-neutral-700 p-7 text-center text-sm text-neutral-500">Check in on a few days to see your focus time in context.</div>}
       </section>
     </div>
   );
