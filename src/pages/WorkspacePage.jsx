@@ -13,6 +13,7 @@ import { TasksWidget } from '../components/workspace/TasksWidget';
 import { ChecklistsView } from '../components/workspace/ChecklistsView';
 import { AnalyticsView } from '../components/workspace/AnalyticsView';
 import { PartyView } from '../components/workspace/PartyView';
+import { MoodView } from '../components/workspace/MoodView';
 import { getSpaceOverlayOpacity } from '../utils/overlay';
 import { isTrustedBackgroundImageUrl } from '../utils/security';
 
@@ -51,6 +52,8 @@ export const WorkspacePage = () => {
         return <TimerView />;
       case 'party':
         return <PartyView />;
+      case 'mood':
+        return <MoodView />;
       case 'spaces':
         return <SpacesView />;
       case 'calendar':

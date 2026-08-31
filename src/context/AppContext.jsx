@@ -186,6 +186,14 @@ const DEFAULT_TIMER_PREFERENCES = { focus: 25, shortBreak: 5, longBreak: 15, ses
 const VALID_TIMER_MODES = new Set(['pomodoro', 'shortBreak', 'longBreak', 'custom']);
 const VALID_SOUNDS = new Set(['forest', 'rain', 'ocean', 'river', 'cafe', 'chimes', 'binaural', 'brown-noise']);
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high']);
+const MOOD_OPTIONS = [
+  { id: 'great', label: 'Great', emoji: '😁', description: 'Energized and optimistic', score: 5 },
+  { id: 'good', label: 'Good', emoji: '🙂', description: 'Steady and positive', score: 4 },
+  { id: 'okay', label: 'Okay', emoji: '😐', description: 'Neutral and present', score: 3 },
+  { id: 'low', label: 'Low', emoji: '😕', description: 'A little off today', score: 2 },
+  { id: 'rough', label: 'Rough', emoji: '😞', description: 'Having a hard day', score: 1 },
+];
+const VALID_MOODS = new Set(MOOD_OPTIONS.map((option) => option.id));
 const VALID_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 
@@ -314,6 +322,23 @@ const sanitizeFocusSessions = (sessions) => {
     });
     return safeSessions;
   }, []);
+};
+
+const sanitizeMoodEntries = (entries) => {
+  if (!Array.isArray(entries)) return [];
+  const byDate = new Map();
+  entries.slice(-180).forEach((entry) => {
+    if (!isPlainObject(entry) || !VALID_DATE.test(entry.date) || !VALID_MOODS.has(entry.mood)) return;
+    byDate.set(entry.date, {
+      date: entry.date,
+      mood: entry.mood,
+      note: truncateText(entry.note, '', 240).trim(),
+      updatedAt: typeof entry.updatedAt === 'string' && entry.updatedAt.length <= 64 && Number.isFinite(Date.parse(entry.updatedAt))
+        ? entry.updatedAt
+        : undefined,
+    });
+  });
+  return [...byDate.values()].sort((first, second) => first.date.localeCompare(second.date)).slice(-180);
 };
 
 const sanitizeWeeklyReflections = (reflections) => {
@@ -553,6 +578,7 @@ export const AppProvider = ({ children }) => {
   const [achievements, setAchievements] = useState(() => sanitizeAchievements(readLocalJson('evolve_achievements', {}, isPlainObject)));
   const [dailyGoalMinutes, setDailyGoalMinutes] = useState(() => readLocalNumber('evolve_daily_goal', 180, 5, 720));
   const [weeklyReflections, setWeeklyReflections] = useState(() => sanitizeWeeklyReflections(readLocalJson('evolve_weekly_reflections', {}, isPlainObject)));
+  const [moodEntries, setMoodEntries] = useState(() => sanitizeMoodEntries(readLocalJson('evolve_mood_entries', [], Array.isArray)));
   const [lastCompletedSessionId, setLastCompletedSessionId] = useState(null);
 
   // Reminders / Calendar Tasks
@@ -605,6 +631,7 @@ export const AppProvider = ({ children }) => {
           if (Array.isArray(cloudState.checklists)) setChecklists(sanitizeChecklists(cloudState.checklists));
           if (typeof cloudState.dailyGoalMinutes === 'number') setDailyGoalMinutes(clampNumber(cloudState.dailyGoalMinutes, 180, 5, 720));
           if (cloudState.weeklyReflections && typeof cloudState.weeklyReflections === 'object') setWeeklyReflections(sanitizeWeeklyReflections(cloudState.weeklyReflections));
+          if (Array.isArray(cloudState.moodEntries)) setMoodEntries(sanitizeMoodEntries(cloudState.moodEntries));
           if (cloudState.achievements && typeof cloudState.achievements === 'object') setAchievements(sanitizeAchievements(cloudState.achievements));
           if (Array.isArray(cloudState.favoriteQuotes)) setFavoriteQuotes(sanitizeFavoriteQuotes(cloudState.favoriteQuotes));
           if (cloudState.timerPreferences && typeof cloudState.timerPreferences === 'object') setTimerPreferences(sanitizeTimerPreferences(cloudState.timerPreferences));
@@ -652,7 +679,7 @@ export const AppProvider = ({ children }) => {
         user_id: user.id,
         state: {
           spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes,
-          weeklyReflections, achievements, favoriteQuotes, timerPreferences,
+          weeklyReflections, moodEntries, achievements, favoriteQuotes, timerPreferences,
           timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget,
           showFlipClockWidget, showTasksWidget, isFocusDimmed,
           isTimerSoundEnabled, timerSoundVolume,
@@ -664,7 +691,7 @@ export const AppProvider = ({ children }) => {
 
     const timer = window.setTimeout(() => { void saveWorkspace(); }, 500);
     return () => window.clearTimeout(timer);
-  }, [user?.id, isWorkspaceLoading, spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes, weeklyReflections, achievements, favoriteQuotes, timerPreferences, timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget, showFlipClockWidget, showTasksWidget, isFocusDimmed, isTimerSoundEnabled, timerSoundVolume]);
+  }, [user?.id, isWorkspaceLoading, spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes, weeklyReflections, moodEntries, achievements, favoriteQuotes, timerPreferences, timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget, showFlipClockWidget, showTasksWidget, isFocusDimmed, isTimerSoundEnabled, timerSoundVolume]);
 
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id || !focusSessions.length) return undefined;
@@ -703,6 +730,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => { safeLocalSet('evolve_focus_sessions', JSON.stringify(focusSessions)); }, [focusSessions]);
   useEffect(() => { safeLocalSet('evolve_daily_goal', String(dailyGoalMinutes)); }, [dailyGoalMinutes]);
   useEffect(() => { safeLocalSet('evolve_weekly_reflections', JSON.stringify(weeklyReflections)); }, [weeklyReflections]);
+  useEffect(() => { safeLocalSet('evolve_mood_entries', JSON.stringify(moodEntries)); }, [moodEntries]);
   useEffect(() => { safeLocalSet('evolve_achievements', JSON.stringify(achievements)); }, [achievements]);
   useEffect(() => {
     const byDay = focusSessions.reduce((all, session) => { const key = session.date; all[key] = all[key] || []; all[key].push(session); return all; }, {});
@@ -799,6 +827,21 @@ export const AppProvider = ({ children }) => {
       throw authError;
     }
     return data;
+  };
+
+  const recordMood = (mood, note = '') => {
+    if (!VALID_MOODS.has(mood)) return;
+    const date = localDateKey();
+    const safeNote = truncateText(note, '', 240).trim();
+    const hasToday = moodEntries.some((entry) => entry.date === date);
+    setMoodEntries((previous) => {
+      const next = [
+        ...previous.filter((entry) => entry.date !== date),
+        { date, mood, note: safeNote, updatedAt: new Date().toISOString() },
+      ];
+      return sanitizeMoodEntries(next);
+    });
+    showToast(hasToday ? 'Today’s mood check-in was updated.' : 'Mood check-in saved.');
   };
 
   const requestPasswordReset = async (email) => {
@@ -1280,6 +1323,9 @@ export const AppProvider = ({ children }) => {
       setDailyGoalMinutes: updateDailyGoalMinutes,
       weeklyReflections,
       setWeeklyReflections: updateWeeklyReflections,
+      moodEntries,
+      moodOptions: MOOD_OPTIONS,
+      recordMood,
       achievements,
       achievementDefinitions: ACHIEVEMENTS,
       logFocusTime,

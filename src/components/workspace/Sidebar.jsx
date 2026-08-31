@@ -10,6 +10,7 @@ import {
   LogOut,
   CheckSquare,
   Activity,
+  Heart,
   Users,
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
@@ -33,6 +34,7 @@ export const Sidebar = () => {
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
     { id: 'checklists', label: 'Checklists', icon: CheckSquare },
     { id: 'analytics', label: 'Analytics', icon: Activity },
+    { id: 'mood', label: 'Mood tracker', icon: Heart },
     { id: 'sounds', label: 'Sounds', icon: Volume2 },
     { id: 'party', label: 'Focus Together', icon: Users },
   ];
