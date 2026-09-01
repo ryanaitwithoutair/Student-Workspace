@@ -18,6 +18,7 @@ This repository intentionally exposes only the Supabase **anon** key in the brow
 - Workspace data loaded from local storage or Supabase is shaped and bounded before it reaches the UI. Bookmark URLs must be HTTPS, and background images are restricted to the curated Unsplash host.
 - RLS limits each authenticated user to their own workspace and sessions. Database constraints cap workspace state at 256 KiB, focus entries at 1–1,440 minutes, and each user at 5,000 sessions.
 - Party sessions have no room codes or public join links. Only the two allow-listed accounts can create or see invitations; only the recipient can accept one; and shared-session writes use narrowly scoped database functions. A partner can be invited only after their app has sent a recent presence heartbeat.
+- A mood check-in shares only its date and mood label with the established partner. Optional mood notes remain private, and the database function returns the partner's mood for one requested date only.
 - Password recovery sends a one-time email link. Do not reuse or forward a recovery email; use the newest link only. The reset form accepts a recovery session from Supabase before allowing a password update.
 
 ## Deliberate trust boundary

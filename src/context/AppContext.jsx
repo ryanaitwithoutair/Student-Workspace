@@ -386,6 +386,7 @@ export const AppProvider = ({ children }) => {
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(readPasswordRecoveryFlag);
   const workspaceLoadedForUserRef = useRef(null);
+  const sharedMoodSyncKeyRef = useRef('');
 
   const beginPasswordRecovery = useCallback(() => {
     try {
@@ -480,28 +481,6 @@ export const AppProvider = ({ children }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user?.id]);
-
-  // Make a received invite visible even when the recipient is currently using
-  // another workspace view. Realtime still respects the invitation table's RLS.
-  useEffect(() => {
-    if (!user?.id || !isSupabaseConfigured) return undefined;
-
-    const channel = supabase
-      .channel(`party-inbox-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'party_invitations', filter: `recipient_id=eq.${user.id}` },
-        (payload) => {
-          const invite = payload.new;
-          if (invite?.status === 'pending' && Number.isInteger(invite.duration_minutes)) {
-            showToast(`Your partner invited you to ${invite.duration_minutes} minutes of shared focus.`);
-          }
-        },
-      )
-      .subscribe();
-
-    return () => { void supabase.removeChannel(channel); };
-  }, [user?.id, showToast]);
 
   // Active Workspace Tab — Focus Timer opens FIRST by default
   const [activeTab, setActiveTab] = useState('timer');
@@ -700,6 +679,32 @@ export const AppProvider = ({ children }) => {
     const timer = window.setTimeout(() => { void saveWorkspace(); }, 500);
     return () => window.clearTimeout(timer);
   }, [user?.id, isWorkspaceLoading, spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes, weeklyReflections, moodEntries, achievements, favoriteQuotes, timerPreferences, timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget, showFlipClockWidget, showTasksWidget, isFocusDimmed, isTimerSoundEnabled, timerSoundVolume]);
+
+  // This contains only the date and mood label; optional notes remain in the
+  // private workspace record. The protected database function exposes a
+  // partner's row for one requested date only.
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id) {
+      sharedMoodSyncKeyRef.current = '';
+      return undefined;
+    }
+
+    const syncKey = `${user.id}:${moodEntries.map((entry) => `${entry.date}:${entry.mood}`).join('|')}`;
+    if (sharedMoodSyncKeyRef.current === syncKey) return undefined;
+    sharedMoodSyncKeyRef.current = syncKey;
+
+    const syncSharedMoods = async () => {
+      if (!moodEntries.length) return;
+      const { error } = await supabase.from('party_mood_entries').upsert(
+        moodEntries.map((entry) => ({ user_id: user.id, entry_date: entry.date, mood: entry.mood })),
+        { onConflict: 'user_id,entry_date' },
+      );
+      if (error) console.error('Unable to update partner mood sharing:', error);
+    };
+
+    const timer = window.setTimeout(() => { void syncSharedMoods(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [user?.id, isWorkspaceLoading, moodEntries]);
 
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id || !focusSessions.length) return undefined;

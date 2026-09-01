@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Calendar, CheckCircle2, Heart, Sparkles } from '../common/Icons';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calendar, CheckCircle2, Heart, RotateCw, Sparkles } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { dayTotals, formatFocusTime, localDateKey } from '../../utils/focusData';
+import { isSupabaseConfigured, supabase } from '../../lib/supabase';
 
 const dateBefore = (dateString, offset) => {
   const date = new Date(`${dateString}T12:00:00`);
@@ -24,7 +25,7 @@ const MoodCheckInForm = ({ entry, moodOptions, recordMood, selectedDate }) => {
 };
 
 export const MoodView = () => {
-  const { moodEntries, moodOptions, recordMood, focusSessions, selectedDate, setSelectedDate } = useApp();
+  const { moodEntries, moodOptions, recordMood, focusSessions, selectedDate, setSelectedDate, user } = useApp();
   const moodsByDate = useMemo(() => new Map(moodEntries.map((entry) => [entry.date, entry])), [moodEntries]);
   const selectedEntry = moodsByDate.get(selectedDate);
   const selectedOption = moodOptions.find((option) => option.id === selectedEntry?.mood);
@@ -36,10 +37,46 @@ export const MoodView = () => {
   const focusByDay = useMemo(() => dayTotals(focusSessions), [focusSessions]);
   const moodFocusPatterns = useMemo(() => moodOptions.map((option) => { const entries = moodEntries.filter((entry) => entry.mood === option.id); const focusMinutes = entries.reduce((total, entry) => total + (focusByDay[entry.date] || 0), 0); return { ...option, checkIns: entries.length, averageFocusMinutes: entries.length ? focusMinutes / entries.length : 0 }; }).filter((pattern) => pattern.checkIns > 0), [focusByDay, moodEntries, moodOptions]);
   const clearestPattern = [...moodFocusPatterns].filter((pattern) => pattern.checkIns >= 2).sort((first, second) => second.averageFocusMinutes - first.averageFocusMinutes)[0];
+  const [partnerMood, setPartnerMood] = useState(null);
+  const [partnerMoodError, setPartnerMoodError] = useState('');
+  const [isPartnerMoodLoading, setIsPartnerMoodLoading] = useState(true);
+
+  const loadPartnerMood = useCallback(async () => {
+    if (!isSupabaseConfigured || !user?.id) {
+      setPartnerMood(null);
+      setPartnerMoodError('Partner mood sharing is unavailable until Supabase is connected.');
+      setIsPartnerMoodLoading(false);
+      return;
+    }
+
+    setIsPartnerMoodLoading(true);
+    const { data, error } = await supabase.rpc('get_partner_mood_for_date', { p_entry_date: selectedDate });
+    if (error) {
+      setPartnerMood(null);
+      setPartnerMoodError(error.code === '42883' || error.code === 'PGRST202' ? 'Partner mood sharing needs the latest supabase/schema.sql.' : 'Unable to load your partner’s mood right now.');
+    } else {
+      setPartnerMood(data?.[0] || null);
+      setPartnerMoodError('');
+    }
+    setIsPartnerMoodLoading(false);
+  }, [selectedDate, user?.id]);
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => { void loadPartnerMood(); }, 0);
+    const poll = window.setInterval(() => { void loadPartnerMood(); }, 15_000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(poll);
+    };
+  }, [loadPartnerMood]);
+
+  const partnerMoodOption = moodOptions.find((option) => option.id === partnerMood?.mood);
+  const partnerName = partnerMood?.partner_email?.split('@')[0] || 'Your partner';
 
   return <div className="space-y-7 animate-fadeIn"><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-emerald-400">Daily reflection</p><h1 className="mt-1 text-3xl font-bold text-white">Mood tracker</h1><p className="mt-1 text-sm text-neutral-400">A private place to notice how you’re doing, one day at a time.</p></div><label className="flex items-center gap-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[.04] px-3 py-2 text-xs font-semibold text-neutral-300"><Calendar className="h-4 w-4 text-emerald-400" /><input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="bg-transparent outline-none" aria-label="Selected workspace date" /></label></div>
   <div className="grid gap-6 xl:grid-cols-[1.35fr_.65fr]"><section className="glass-panel rounded-3xl border border-neutral-800 p-5 shadow-xl sm:p-6"><div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10"><Heart className="h-5 w-5 text-emerald-300" /></div><div><h2 className="font-bold text-white">How did you feel on {selectedDateLabel}?</h2><p className="mt-1 text-xs text-neutral-400">This check-in is synced with the date selected in Calendar.</p></div></div><MoodCheckInForm key={selectedDate} entry={selectedEntry} moodOptions={moodOptions} recordMood={recordMood} selectedDate={selectedDate} /></section>
   <section className="glass-panel rounded-3xl border border-neutral-800 p-5 sm:p-6"><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-emerald-400" /><h2 className="font-bold text-white">Week ending this day</h2></div><div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-2xl border border-neutral-800 bg-black/15 p-4"><p className="text-xs text-neutral-400">Check-ins</p><p className="mt-1 text-2xl font-bold text-white">{weeklyEntries.length}<span className="text-sm text-neutral-500"> / 7</span></p></div><div className="rounded-2xl border border-neutral-800 bg-black/15 p-4"><p className="text-xs text-neutral-400">Average mood</p><p className="mt-1 text-2xl font-bold text-white">{weeklyAverage || '—'}<span className="text-sm text-neutral-500">{weeklyAverage ? ' / 5' : ''}</span></p></div></div><div className="mt-5 grid grid-cols-7 gap-1.5">{week.map(({ date, entry }) => { const option = entry && moodOptions.find((mood) => mood.id === entry.mood); return <button type="button" key={date} onClick={() => setSelectedDate(date)} title={option ? `${date}: ${option.label}` : `${date}: no check-in`} className={`text-center ${date === selectedDate ? 'rounded-xl ring-1 ring-emerald-400/70' : ''}`}><span className={`flex aspect-square items-center justify-center rounded-xl border text-lg ${option ? 'border-emerald-400/25 bg-emerald-400/[.08]' : 'border-neutral-800 bg-black/10 text-neutral-600'}`}>{option?.emoji || '·'}</span><span className="mt-1 block text-[10px] text-neutral-500">{new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'narrow' })}</span></button>; })}</div>{selectedOption && <p className="mt-5 rounded-xl border border-emerald-400/15 bg-emerald-400/[.045] p-3 text-xs leading-5 text-neutral-300">On this day, you chose <span className="font-bold text-white">{selectedOption.emoji} {selectedOption.label}</span>. {selectedOption.description}.</p>}</section></div>
+  <section className="glass-panel rounded-3xl border border-neutral-800 p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-rose-400/25 bg-rose-400/[.07]"><Heart className="h-5 w-5 text-rose-300" /></div><div><h2 className="font-bold text-white">{partnerName}’s mood</h2><p className="mt-1 text-xs text-neutral-400">Shared for {selectedDateLabel}.</p></div></div><button type="button" onClick={() => { void loadPartnerMood(); }} className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-800 hover:text-white" aria-label="Refresh partner mood"><RotateCw className={`h-4 w-4 ${isPartnerMoodLoading ? 'animate-spin' : ''}`} /></button></div>{isPartnerMoodLoading ? <p className="mt-5 text-sm text-neutral-500">Checking in with your partner…</p> : partnerMoodError ? <p className="mt-5 rounded-xl border border-amber-400/25 bg-amber-400/[.06] p-3 text-sm text-amber-100">{partnerMoodError}</p> : !partnerMood ? <p className="mt-5 text-sm text-neutral-500">Start Focus Together once to pair your accounts, then your shared moods will appear here.</p> : partnerMoodOption ? <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[.05] p-4"><div className="flex items-center gap-4"><span className="text-4xl">{partnerMoodOption.emoji}</span><div><p className="text-lg font-bold text-white">{partnerMoodOption.label}</p><p className="mt-1 text-sm text-neutral-400">{partnerMoodOption.description}</p></div></div>{partnerMood.note && <div className="border-t border-emerald-400/10 pt-3 text-sm text-neutral-300 italic whitespace-pre-wrap">"{partnerMood.note}"</div>}</div> : <p className="mt-5 rounded-2xl border border-dashed border-neutral-700 p-5 text-sm text-neutral-500">{partnerName} has not checked in for this date yet.</p>}</section>
   <section className="glass-panel rounded-3xl border border-neutral-800 p-5 sm:p-6"><div className="flex items-center gap-2"><Calendar className="h-5 w-5 text-emerald-400" /><div><h2 className="font-bold text-white">Recent check-ins</h2><p className="mt-0.5 text-xs text-neutral-400">Select a check-in to view that day everywhere in the workspace.</p></div></div><div className="mt-5 space-y-3">{recentEntries.map((entry) => { const option = moodOptions.find((mood) => mood.id === entry.mood); return <button type="button" onClick={() => setSelectedDate(entry.date)} key={entry.date} className={`flex w-full gap-3 rounded-2xl border p-4 text-left transition-colors ${entry.date === selectedDate ? 'border-emerald-400/50 bg-emerald-400/[.06]' : 'border-neutral-800 bg-black/10 hover:border-neutral-700'}`}><span className="text-2xl" aria-hidden="true">{option?.emoji}</span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-baseline justify-between gap-x-3"><span className="text-sm font-bold text-white">{option?.label}</span><time className="text-xs text-neutral-500" dateTime={entry.date}>{new Date(`${entry.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></span>{entry.note && <span className="mt-1 block whitespace-pre-wrap break-words text-sm leading-6 text-neutral-300">{entry.note}</span>}</span></button>; })}{!recentEntries.length && <div className="rounded-2xl border border-dashed border-neutral-700 p-8 text-center text-sm text-neutral-500">Your check-ins will appear here after you save your first one.</div>}</div></section>
   <section className="glass-panel rounded-3xl border border-neutral-800 p-5 sm:p-6"><div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/25 bg-emerald-400/[.07]"><Sparkles className="h-5 w-5 text-emerald-400" /></div><div><h2 className="font-bold text-white">Focus & mood</h2><p className="mt-1 text-xs text-neutral-400">A gentle reflection on your logged focus time — not a measure of your worth or productivity.</p></div></div>{moodFocusPatterns.length ? <><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{moodFocusPatterns.map((pattern) => <div key={pattern.id} className="rounded-2xl border border-neutral-800 bg-black/10 p-4"><div className="flex items-center gap-2"><span className="text-xl">{pattern.emoji}</span><span className="text-sm font-bold text-white">{pattern.label}</span></div><p className="mt-3 text-xl font-bold text-white">{formatFocusTime(pattern.averageFocusMinutes)}</p><p className="mt-1 text-xs text-neutral-500">average focus · {pattern.checkIns} {pattern.checkIns === 1 ? 'check-in' : 'check-ins'}</p></div>)}</div>{clearestPattern && <p className="mt-4 rounded-xl border border-emerald-400/15 bg-emerald-400/[.045] p-3 text-sm leading-6 text-neutral-300">Across <span className="font-bold text-white">{clearestPattern.checkIns} {clearestPattern.label.toLowerCase()} check-ins</span>, you logged an average of <span className="font-bold text-white">{formatFocusTime(clearestPattern.averageFocusMinutes)}</span> of focus. Patterns become more useful as you keep checking in.</p>}</> : <div className="mt-5 rounded-2xl border border-dashed border-neutral-700 p-7 text-center text-sm text-neutral-500">Check in on a few days to see your focus time in context.</div>}</section></div>;
 };

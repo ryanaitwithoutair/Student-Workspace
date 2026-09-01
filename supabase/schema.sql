@@ -188,12 +188,24 @@ create table if not exists public.party_sessions (
   constraint party_sessions_sorted_users_check check (user_one_id::text < user_two_id::text)
 );
 
+-- Mood labels are shared only with the established partner. Notes remain in
+-- the owner's private workspace state and are never copied into this table.
+create table if not exists public.party_mood_entries (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  entry_date date not null,
+  mood text not null check (mood in ('great', 'good', 'okay', 'low', 'rough')),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, entry_date)
+);
+
 create index if not exists party_invitations_recipient_idx
   on public.party_invitations (recipient_id, created_at desc);
 create index if not exists party_invitations_sender_idx
   on public.party_invitations (sender_id, created_at desc);
 create index if not exists party_sessions_members_idx
   on public.party_sessions (user_one_id, user_two_id, started_at desc);
+create index if not exists party_mood_entries_date_idx
+  on public.party_mood_entries (entry_date desc);
 create unique index if not exists party_sessions_one_active_pair_idx
   on public.party_sessions (user_one_id, user_two_id)
   where status = 'active';
@@ -203,17 +215,20 @@ alter table public.party_presence enable row level security;
 alter table public.party_partnerships enable row level security;
 alter table public.party_invitations enable row level security;
 alter table public.party_sessions enable row level security;
+alter table public.party_mood_entries enable row level security;
 
 revoke all on public.party_allowed_users from public, anon, authenticated;
 revoke all on public.party_presence from public, anon;
 revoke all on public.party_partnerships from public, anon;
 revoke all on public.party_invitations from public, anon;
 revoke all on public.party_sessions from public, anon;
+revoke all on public.party_mood_entries from public, anon;
 
 grant select, insert, update on public.party_presence to authenticated;
 grant select on public.party_partnerships to authenticated;
 grant select on public.party_invitations to authenticated;
 grant select on public.party_sessions to authenticated;
+grant select, insert, update, delete on public.party_mood_entries to authenticated;
 
 drop policy if exists "Users update only their party presence" on public.party_presence;
 create policy "Users update only their party presence"
@@ -248,6 +263,31 @@ drop policy if exists "Users can read their party sessions" on public.party_sess
 create policy "Users can read their party sessions"
   on public.party_sessions for select to authenticated
   using ((select auth.uid()) in (user_one_id, user_two_id));
+
+-- A user's shared mood rows remain directly accessible only to that user.
+-- Partner reads use get_partner_mood_for_date below, which returns a single
+-- date and enforces the existing partnership boundary server-side.
+drop policy if exists "Users manage their own shared moods" on public.party_mood_entries;
+create policy "Users manage their own shared moods"
+  on public.party_mood_entries for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+create or replace function public.set_party_mood_entry_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists set_party_mood_entry_updated_at on public.party_mood_entries;
+create trigger set_party_mood_entry_updated_at
+  before update on public.party_mood_entries
+  for each row execute function public.set_party_mood_entry_updated_at();
 
 -- All invitation writes pass through the functions below. They use an empty
 -- search path and explicit schemas so a caller cannot influence their queries.
@@ -507,17 +547,50 @@ as $$
   limit 1;
 $$;
 
+-- The caller can see only the existing partner's mood for one requested day.
+-- This avoids granting either partner direct, broad read access to the other
+-- person's shared-mood table.
+create or replace function public.get_partner_mood_for_date(p_entry_date date)
+returns table (partner_id uuid, partner_email text, mood text, note text, entry_date date, updated_at timestamptz)
+language sql
+security definer
+set search_path = ''
+stable
+as $$
+  select
+    partner.id as partner_id,
+    partner.email as partner_email,
+    mood_entry.mood,
+    mood_entry.note,
+    mood_entry.entry_date,
+    mood_entry.updated_at
+  from public.party_partnerships partnership
+  join auth.users partner on partner.id = case
+    when partnership.user_one_id = auth.uid() then partnership.user_two_id
+    else partnership.user_one_id
+  end
+  left join public.party_mood_entries mood_entry
+    on mood_entry.user_id = partner.id
+    and mood_entry.entry_date = p_entry_date
+  where auth.uid() in (partnership.user_one_id, partnership.user_two_id)
+    and p_entry_date is not null
+  limit 1;
+$$;
+
 revoke all on function public.enforce_party_allowed_user_limit() from public, anon, authenticated;
 revoke all on function public.send_party_invite(text, integer) from public, anon, authenticated;
 revoke all on function public.respond_to_party_invite(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.end_party_session(uuid) from public, anon, authenticated;
 revoke all on function public.complete_party_session(uuid) from public, anon, authenticated;
 revoke all on function public.get_party_partner() from public, anon, authenticated;
+revoke all on function public.get_partner_mood_for_date(date) from public, anon, authenticated;
+revoke all on function public.set_party_mood_entry_updated_at() from public, anon, authenticated;
 grant execute on function public.send_party_invite(text, integer) to authenticated;
 grant execute on function public.respond_to_party_invite(uuid, boolean) to authenticated;
 grant execute on function public.end_party_session(uuid) to authenticated;
 grant execute on function public.complete_party_session(uuid) to authenticated;
 grant execute on function public.get_party_partner() to authenticated;
+grant execute on function public.get_partner_mood_for_date(date) to authenticated;
 
 -- Enables immediate invite/session updates for clients currently in the app.
 do $$
