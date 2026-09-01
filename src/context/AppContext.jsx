@@ -275,6 +275,7 @@ const sanitizeChecklist = (list, index) => {
       id: sanitizeId(task.id, `task-import-${index}-${taskIndex}`),
       title: truncateText(task.title, 'Untitled task', 120).trim() || 'Untitled task',
       completed: Boolean(task.completed),
+      date: sanitizeDate(task.date, ''),
     });
     return safeTasks;
   }, []) : [];
@@ -504,6 +505,13 @@ export const AppProvider = ({ children }) => {
 
   // Active Workspace Tab — Focus Timer opens FIRST by default
   const [activeTab, setActiveTab] = useState('timer');
+  const [selectedDate, setSelectedDate] = useState(() => (
+    sanitizeDate(safeLocalGet('evolve_selected_date'), localDateKey())
+  ));
+
+  const updateSelectedDate = useCallback((nextDate) => {
+    setSelectedDate(sanitizeDate(nextDate, localDateKey()));
+  }, []);
 
   // Widget Toggles
   const [showQuotesWidget, setShowQuotesWidget] = useState(() => {
@@ -728,6 +736,7 @@ export const AppProvider = ({ children }) => {
   }, [reminders]);
 
   useEffect(() => { safeLocalSet('evolve_focus_sessions', JSON.stringify(focusSessions)); }, [focusSessions]);
+  useEffect(() => { safeLocalSet('evolve_selected_date', selectedDate); }, [selectedDate]);
   useEffect(() => { safeLocalSet('evolve_daily_goal', String(dailyGoalMinutes)); }, [dailyGoalMinutes]);
   useEffect(() => { safeLocalSet('evolve_weekly_reflections', JSON.stringify(weeklyReflections)); }, [weeklyReflections]);
   useEffect(() => { safeLocalSet('evolve_mood_entries', JSON.stringify(moodEntries)); }, [moodEntries]);
@@ -829,19 +838,19 @@ export const AppProvider = ({ children }) => {
     return data;
   };
 
-  const recordMood = (mood, note = '') => {
+  const recordMood = (mood, note = '', date = localDateKey()) => {
     if (!VALID_MOODS.has(mood)) return;
-    const date = localDateKey();
+    const safeDate = sanitizeDate(date, localDateKey());
     const safeNote = truncateText(note, '', 240).trim();
-    const hasToday = moodEntries.some((entry) => entry.date === date);
+    const hasExistingEntry = moodEntries.some((entry) => entry.date === safeDate);
     setMoodEntries((previous) => {
       const next = [
-        ...previous.filter((entry) => entry.date !== date),
-        { date, mood, note: safeNote, updatedAt: new Date().toISOString() },
+        ...previous.filter((entry) => entry.date !== safeDate),
+        { date: safeDate, mood, note: safeNote, updatedAt: new Date().toISOString() },
       ];
       return sanitizeMoodEntries(next);
     });
-    showToast(hasToday ? 'Today’s mood check-in was updated.' : 'Mood check-in saved.');
+    showToast(hasExistingEntry ? 'Mood check-in was updated.' : 'Mood check-in saved.');
   };
 
   const requestPasswordReset = async (email) => {
@@ -1218,12 +1227,13 @@ export const AppProvider = ({ children }) => {
     setChecklists((previous) => previous.map((list) => list.id === id ? { ...list, name } : list));
   };
   const deleteChecklist = (id) => setChecklists((previous) => previous.length > 1 ? previous.filter((list) => list.id !== id) : previous);
-  const addChecklistTask = (listId, title) => {
+  const addChecklistTask = (listId, title, date = selectedDate) => {
     const safeTitle = truncateText(title, '', 120).trim();
     if (!safeTitle) return;
+    const safeDate = sanitizeDate(date, selectedDate);
     setChecklists((previous) => previous.map((list) => {
       if (list.id !== listId || list.tasks.length >= 50) return list;
-      return { ...list, tasks: [...list.tasks, { id: `task-${Date.now()}`, title: safeTitle, completed: false }] };
+      return { ...list, tasks: [...list.tasks, { id: `task-${Date.now()}`, title: safeTitle, completed: false, date: safeDate }] };
     }));
   };
   const updateChecklistTask = (listId, taskId, updates) => {
@@ -1231,6 +1241,7 @@ export const AppProvider = ({ children }) => {
     const safeUpdates = {};
     if ('title' in updates) safeUpdates.title = truncateText(updates.title, '', 120).trim();
     if ('completed' in updates) safeUpdates.completed = Boolean(updates.completed);
+    if ('date' in updates) safeUpdates.date = sanitizeDate(updates.date, '');
     if (!Object.keys(safeUpdates).length || ('title' in safeUpdates && !safeUpdates.title)) return;
     setChecklists((previous) => previous.map((list) => list.id === listId ? { ...list, tasks: list.tasks.map((task) => task.id === taskId ? { ...task, ...safeUpdates } : task) } : list));
   };
@@ -1270,6 +1281,8 @@ export const AppProvider = ({ children }) => {
       logout,
       activeTab,
       setActiveTab,
+      selectedDate,
+      setSelectedDate: updateSelectedDate,
       showQuotesWidget,
       toggleQuotesWidget: () => setShowQuotesWidget(prev => !prev),
       showFlipClockWidget,

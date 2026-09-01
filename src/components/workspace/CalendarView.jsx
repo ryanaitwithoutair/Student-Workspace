@@ -13,19 +13,19 @@ import {
 } from '../common/Icons';
 import { useApp } from '../../context/AppContext';
 import { formatTime12h, toTimeInputValue } from '../../utils/timeFormat';
-import { dayTotals, formatFocusTime } from '../../utils/focusData';
+import { dayTotals, formatFocusTime, localDateKey } from '../../utils/focusData';
 
 export const CalendarView = () => {
-  const { reminders, addReminder, updateReminder, toggleReminder, deleteReminder, focusSessions, checklists } = useApp();
+  const { reminders, addReminder, updateReminder, toggleReminder, deleteReminder, focusSessions, checklists, moodEntries, moodOptions, selectedDate, setSelectedDate, setActiveTab } = useApp();
   const focusByDay = dayTotals(focusSessions);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDateStr, setSelectedDateStr] = useState(() => new Date().toISOString().split('T')[0]);
+  const [currentDate, setCurrentDate] = useState(() => new Date(`${selectedDate}T12:00:00`));
+  const moodByDate = new Map(moodEntries.map((entry) => [entry.date, entry]));
 
   // Modal State (Supports both Add & Edit)
   const [showModal, setShowModal] = useState(false);
   const [editingReminderId, setEditingReminderId] = useState(null);
   const [formTitle, setFormTitle] = useState('');
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDate, setFormDate] = useState(localDateKey());
   const [formTime, setFormTime] = useState('10:00');
   const [formPriority, setFormPriority] = useState('medium');
   const [formNotes, setFormNotes] = useState('');
@@ -63,7 +63,7 @@ export const CalendarView = () => {
   const openEditModal = (rem) => {
     setEditingReminderId(rem.id);
     setFormTitle(rem.title);
-    setFormDate(rem.date || new Date().toISOString().split('T')[0]);
+    setFormDate(rem.date || localDateKey());
     setFormTime(toTimeInputValue(rem.time));
     setFormPriority(rem.priority || 'medium');
     setFormNotes(rem.notes || '');
@@ -92,7 +92,12 @@ export const CalendarView = () => {
   };
 
   // Filter reminders matching the selected date
-  const filteredReminders = reminders.filter(r => (r.date || new Date().toISOString().split('T')[0]) === selectedDateStr);
+  const filteredReminders = reminders.filter((reminder) => reminder.date === selectedDate);
+  const selectedTasks = checklists.flatMap((list) => list.tasks).filter((task) => task.date === selectedDate);
+  const selectedTaskDone = selectedTasks.filter((task) => task.completed).length;
+  const selectedMood = moodByDate.get(selectedDate);
+  const selectedMoodOption = moodOptions.find((option) => option.id === selectedMood?.mood);
+  const selectedDateLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -104,12 +109,12 @@ export const CalendarView = () => {
             Calendar & Focus Reminders
           </h1>
           <p className="text-sm text-neutral-400 mt-1">
-            Click any date on the calendar grid to schedule, view, edit, or delete custom focus reminders.
+            Select a date to review its focus, mood, reminders, and checklist tasks across the workspace.
           </p>
         </div>
 
         <button
-          onClick={() => openAddModalForDate(selectedDateStr)}
+          onClick={() => openAddModalForDate(selectedDate)}
           className="btn-emerald px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg"
         >
           <Plus className="w-4 h-4" />
@@ -165,17 +170,18 @@ export const CalendarView = () => {
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const dayNum = i + 1;
               const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${dayNum.toString().padStart(2, '0')}`;
-              const isSelected = dateStr === selectedDateStr;
-              const isToday = dateStr === new Date().toISOString().split('T')[0];
+              const isSelected = dateStr === selectedDate;
+              const isToday = dateStr === localDateKey();
 
               // Check reminders matching this day
               const dayReminders = reminders.filter(r => r.date === dateStr);
               const hasFocus = Boolean(focusByDay[dateStr]);
+              const moodOption = moodOptions.find((option) => option.id === moodByDate.get(dateStr)?.mood);
 
               return (
                 <div
                   key={dayNum}
-                  onClick={() => setSelectedDateStr(dateStr)}
+                  onClick={() => setSelectedDate(dateStr)}
                   className={`h-16 rounded-2xl p-2.5 glass-panel flex flex-col justify-between transition-all cursor-pointer border relative overflow-hidden ${
                     isSelected
                       ? 'border-emerald-400 bg-emerald-500/20 text-white font-bold ring-2 ring-emerald-500/40 shadow-lg'
@@ -213,6 +219,7 @@ export const CalendarView = () => {
                     </div>
                   )}
                   {hasFocus && <span className="absolute bottom-1.5 right-2 text-[9px] text-emerald-300">{focusByDay[dateStr]}m</span>}
+                  {moodOption && <span className="absolute bottom-1.5 left-2 text-xs" title={moodOption.label}>{moodOption.emoji}</span>}
                 </div>
               );
             })}
@@ -228,28 +235,29 @@ export const CalendarView = () => {
                 Focus Reminders ({filteredReminders.length})
               </h3>
               <span className="text-xs text-neutral-400 font-medium mt-0.5 block">
-                Selected: {selectedDateStr}
+                Selected: {selectedDateLabel}
               </span>
             </div>
             <button
-              onClick={() => openAddModalForDate(selectedDateStr)}
+              onClick={() => openAddModalForDate(selectedDate)}
               className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-emerald-400 transition-colors"
               title="Add reminder for this date"
             >
               <Plus className="w-4 h-4" />
             </button>
           </div>
-          <div className="rounded-2xl bg-neutral-900/70 border border-neutral-800 p-3 grid grid-cols-3 gap-2 text-center"><div><p className="text-[10px] text-neutral-500 uppercase">Focus</p><p className="text-xs text-white font-bold mt-1">{formatFocusTime(focusByDay[selectedDateStr] || 0)}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Sessions</p><p className="text-xs text-white font-bold mt-1">{focusSessions.filter(s=>s.date===selectedDateStr).length}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Tasks</p><p className="text-xs text-white font-bold mt-1">{checklists.reduce((a,l)=>a+l.tasks.filter(t=>t.completed).length,0)} / {checklists.reduce((a,l)=>a+l.tasks.length,0)}</p></div></div>
+          <div className="rounded-2xl bg-neutral-900/70 border border-neutral-800 p-3 grid grid-cols-2 gap-2 text-center"><div><p className="text-[10px] text-neutral-500 uppercase">Focus</p><p className="text-xs text-white font-bold mt-1">{formatFocusTime(focusByDay[selectedDate] || 0)}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Sessions</p><p className="text-xs text-white font-bold mt-1">{focusSessions.filter((session) => session.date === selectedDate).length}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Checklist</p><p className="text-xs text-white font-bold mt-1">{selectedTaskDone} / {selectedTasks.length}</p></div><div><p className="text-[10px] text-neutral-500 uppercase">Mood</p><p className="text-xs text-white font-bold mt-1">{selectedMoodOption ? `${selectedMoodOption.emoji} ${selectedMoodOption.label}` : '—'}</p></div></div>
+          <div className="grid grid-cols-3 gap-2"><button type="button" onClick={() => setActiveTab('checklists')} className="rounded-xl border border-neutral-800 px-2 py-2 text-xs font-semibold text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-white">Checklist</button><button type="button" onClick={() => setActiveTab('analytics')} className="rounded-xl border border-neutral-800 px-2 py-2 text-xs font-semibold text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-white">Analytics</button><button type="button" onClick={() => setActiveTab('mood')} className="rounded-xl border border-neutral-800 px-2 py-2 text-xs font-semibold text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-white">Mood</button></div>
 
           {/* List of Reminders for Selected Date */}
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
             {filteredReminders.length === 0 ? (
               <div className="text-center py-8 space-y-3">
                 <p className="text-xs text-neutral-400 italic">
-                  No reminders set for {selectedDateStr}.
+                  No reminders set for {selectedDateLabel}.
                 </p>
                 <button
-                  onClick={() => openAddModalForDate(selectedDateStr)}
+                  onClick={() => openAddModalForDate(selectedDate)}
                   className="btn-emerald px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" /> Create Focus Reminder
