@@ -680,8 +680,8 @@ export const AppProvider = ({ children }) => {
     return () => window.clearTimeout(timer);
   }, [user?.id, isWorkspaceLoading, spaces, activeSpaceId, reminders, checklists, dailyGoalMinutes, weeklyReflections, moodEntries, achievements, favoriteQuotes, timerPreferences, timerMode, customMinutes, timeLeft, timerEndsAt, showQuotesWidget, showFlipClockWidget, showTasksWidget, isFocusDimmed, isTimerSoundEnabled, timerSoundVolume]);
 
-  // This contains only the date and mood label; optional notes remain in the
-  // private workspace record. The protected database function exposes a
+  // This syncs the user's mood entries to the public database so their
+  // partner can view them. The protected database function exposes a
   // partner's row for one requested date only.
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured || isWorkspaceLoading || workspaceLoadedForUserRef.current !== user.id) {
@@ -696,7 +696,7 @@ export const AppProvider = ({ children }) => {
     const syncSharedMoods = async () => {
       if (!moodEntries.length) return;
       const { error } = await supabase.from('party_mood_entries').upsert(
-        moodEntries.map((entry) => ({ user_id: user.id, entry_date: entry.date, mood: entry.mood })),
+        moodEntries.map((entry) => ({ user_id: user.id, entry_date: entry.date, mood: entry.mood, note: entry.note || null })),
         { onConflict: 'user_id,entry_date' },
       );
       if (error) console.error('Unable to update partner mood sharing:', error);

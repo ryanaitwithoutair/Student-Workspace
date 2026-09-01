@@ -188,12 +188,12 @@ create table if not exists public.party_sessions (
   constraint party_sessions_sorted_users_check check (user_one_id::text < user_two_id::text)
 );
 
--- Mood labels are shared only with the established partner. Notes remain in
--- the owner's private workspace state and are never copied into this table.
+-- Mood labels and notes are shared only with the established partner.
 create table if not exists public.party_mood_entries (
   user_id uuid not null references auth.users(id) on delete cascade,
   entry_date date not null,
   mood text not null check (mood in ('great', 'good', 'okay', 'low', 'rough')),
+  note text,
   updated_at timestamptz not null default now(),
   primary key (user_id, entry_date)
 );
