@@ -645,12 +645,12 @@ language sql
 security definer
 set search_path = ''
 stable
-as $body
+as $$
   select exists (
     select 1 from public.user_roles
     where user_id = auth.uid() and role = 'admin'
   );
-$body;
+$$;
 
 create policy "Admins can read all roles"
   on public.user_roles for select to authenticated
