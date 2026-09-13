@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from '../router/router';
 import { Sidebar } from '../components/workspace/Sidebar';
+import { MailWidget } from '../components/workspace/MailWidget';
 import { TopBar } from '../components/workspace/TopBar';
 import { SpacesView } from '../components/workspace/SpacesView';
 import { CalendarView } from '../components/workspace/CalendarView';
@@ -108,6 +109,9 @@ export const WorkspacePage = () => {
 
       {/* Floating Focus Tasks Widget */}
       {activeTab === 'timer' && showTasksWidget && <TasksWidget />}
+
+      {/* Cute Mail Widget */}
+      <MailWidget />
     </div>
   );
 };

@@ -681,3 +681,50 @@ create policy "Admins can read all audit events"
   on public.audit_events for select to authenticated
   using (public.is_admin());
 
+-- ---------------------------------------------------------------------------
+-- Cute Mail System
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.party_messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  recipient_id uuid not null references auth.users(id) on delete cascade,
+  content text not null,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now(),
+  constraint content_length_check check (char_length(trim(content)) > 0 and char_length(content) <= 1000)
+);
+
+create index if not exists party_messages_recipient_idx on public.party_messages(recipient_id, created_at desc);
+create index if not exists party_messages_sender_idx on public.party_messages(sender_id, created_at desc);
+
+alter table public.party_messages enable row level security;
+revoke all on public.party_messages from public, anon;
+grant select, insert, update on public.party_messages to authenticated;
+
+create policy "Users can view their own messages"
+  on public.party_messages for select to authenticated
+  using (auth.uid() in (sender_id, recipient_id));
+
+create policy "Users can send messages to their partner"
+  on public.party_messages for insert to authenticated
+  with check (
+    auth.uid() = sender_id
+    and exists (
+      select 1 from public.party_partnerships
+      where (user_one_id = auth.uid() and user_two_id = recipient_id)
+         or (user_two_id = auth.uid() and user_one_id = recipient_id)
+    )
+  );
+
+create policy "Recipients can mark messages as read"
+  on public.party_messages for update to authenticated
+  using (auth.uid() = recipient_id)
+  with check (auth.uid() = recipient_id);
+
+do $body
+begin
+  alter publication supabase_realtime add table public.party_messages;
+exception when duplicate_object then null;
+end;
+$body;
