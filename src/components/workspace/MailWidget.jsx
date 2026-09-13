@@ -2,7 +2,18 @@
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../context/AppContext';
 import { soundEngine } from '../../audio/soundGenerator';
-import { Send, X, Mail } from 'lucide-react';
+
+const SendIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+);
+
+const XIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+);
+
+const MailIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+);
 
 export const MailWidget = () => {
   const { user, showToast } = useApp();
@@ -110,9 +121,9 @@ export const MailWidget = () => {
     <>
       <button 
         onClick={handleOpen}
-        className="fixed bottom-6 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg transition-transform hover:scale-105 z-40"
+        className="fixed bottom-24 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg transition-transform hover:scale-105 z-50 flex items-center justify-center"
       >
-        <Mail size={24} />
+        <MailIcon />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
             {unreadCount}
@@ -121,11 +132,11 @@ export const MailWidget = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-44 right-6 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-bottom-5">
           <div className="p-4 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/50">
-            <h3 className="font-semibold flex items-center gap-2 text-white"><Mail size={16} /> Partner Mail</h3>
+            <h3 className="font-semibold flex items-center gap-2 text-white"><MailIcon /> <span className="ml-2">Partner Mail</span></h3>
             <button onClick={() => setIsOpen(false)} className="text-neutral-400 hover:text-white p-1">
-              <X size={16} />
+              <XIcon />
             </button>
           </div>
           
@@ -153,9 +164,9 @@ export const MailWidget = () => {
               <button 
                 type="submit" 
                 disabled={!newMessage.trim()}
-                className="p-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-lg transition-colors"
+                className="p-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center justify-center"
               >
-                <Send size={16} />
+                <SendIcon />
               </button>
             </form>
           </div>
