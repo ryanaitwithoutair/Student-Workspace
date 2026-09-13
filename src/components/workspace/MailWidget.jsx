@@ -29,7 +29,19 @@ export const MailWidget = () => {
     const fetchPartnerAndMessages = async () => {
       // Get partner
       const { data: partnerData } = await supabase.rpc('get_party_partner');
-      const partner = partnerData && partnerData[0] ? partnerData[0].partner_id : null;
+      let partner = partnerData && partnerData[0] ? partnerData[0].partner_id : null;
+
+      // Fallback: Hardcoded direct connection for specific accounts
+      if (!partner && user.email) {
+        if (user.email.toLowerCase() === 'aryan.tamhane.2011@gmail.com') {
+          const { data } = await supabase.rpc('get_user_id_by_email', { target_email: 'vaibhavibadhe123@gmail.com' });
+          if (data) partner = data;
+        } else if (user.email.toLowerCase() === 'vaibhavibadhe123@gmail.com') {
+          const { data } = await supabase.rpc('get_user_id_by_email', { target_email: 'aryan.tamhane.2011@gmail.com' });
+          if (data) partner = data;
+        }
+      }
+      
       setPartnerId(partner);
 
       // Fetch unread messages

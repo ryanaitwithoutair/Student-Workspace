@@ -728,3 +728,20 @@ begin
 exception when duplicate_object then null;
 end;
 $body;
+-- Relax RLS for messages to allow direct messaging
+drop policy if exists "Users can send messages to their partner" on public.party_messages;
+
+create policy "Users can send messages"
+  on public.party_messages for insert to authenticated
+  with check (auth.uid() = sender_id);
+
+-- Helper to lookup the special partner's UUID
+create or replace function public.get_user_id_by_email(target_email text)
+returns uuid
+language sql
+security definer
+set search_path = ''
+stable
+as $body
+  select id from auth.users where email = target_email limit 1;
+$body;
