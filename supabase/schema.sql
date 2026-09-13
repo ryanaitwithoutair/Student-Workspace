@@ -621,3 +621,63 @@ insert into public.party_allowed_users (user_id)
 select id from auth.users
 where lower(email) in ('aryan.tamhane.2011@gmail.com', 'vaibhavibadhe123@gmail.com')
 on conflict (user_id) do nothing;
+-- ---------------------------------------------------------------------------
+-- RBAC and Administrative Audit
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.user_roles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null check (role in ('admin', 'user')) default 'user',
+  created_at timestamptz not null default now()
+);
+
+alter table public.user_roles enable row level security;
+revoke all on public.user_roles from public, anon;
+grant select on public.user_roles to authenticated;
+
+create policy "Users can read their own role"
+  on public.user_roles for select to authenticated
+  using (auth.uid() = user_id);
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = ''
+stable
+as $body
+  select exists (
+    select 1 from public.user_roles
+    where user_id = auth.uid() and role = 'admin'
+  );
+$body;
+
+create policy "Admins can read all roles"
+  on public.user_roles for select to authenticated
+  using (public.is_admin());
+
+create table if not exists public.audit_events (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid not null references auth.users(id) on delete cascade,
+  event_type text not null,
+  resource_type text,
+  resource_id text,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists audit_events_actor_idx on public.audit_events (actor_user_id, created_at desc);
+create index if not exists audit_events_type_idx on public.audit_events (event_type, created_at desc);
+
+alter table public.audit_events enable row level security;
+revoke all on public.audit_events from public, anon;
+grant insert, select on public.audit_events to authenticated;
+
+create policy "Users can insert own audit events"
+  on public.audit_events for insert to authenticated
+  with check (auth.uid() = actor_user_id);
+
+create policy "Admins can read all audit events"
+  on public.audit_events for select to authenticated
+  using (public.is_admin());
+

@@ -1,10 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { RouterView } from './router/router';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { WorkspacePage } from './pages/WorkspacePage';
+import { AdminPage } from './pages/AdminPage';
 import { Toast } from './components/common/Toast';
 
 const ToastContainer = () => {
@@ -20,6 +21,7 @@ export function App() {
     '/login': <AuthPage />,
     '/reset-password': <ResetPasswordPage />,
     '/app': <WorkspacePage />,
+    '/admin': <AdminPage />,
     '*': <LandingPage />
   };
 
