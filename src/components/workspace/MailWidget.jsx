@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../context/AppContext';
 import { soundEngine } from '../../audio/soundGenerator';
@@ -113,7 +113,7 @@ export const MailWidget = () => {
       showToast('Could not send message.', 'error');
     } else {
       setNewMessage('');
-      showToast('Cute message sent! 💌', 'success');
+      showToast('Message sent! 💌', 'success');
     }
   };
 
@@ -121,7 +121,7 @@ export const MailWidget = () => {
     <>
       <button 
         onClick={handleOpen}
-        className="fixed bottom-24 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg transition-transform hover:scale-105 z-[9999] flex items-center justify-center"
+        className="fixed top-6 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg transition-transform hover:scale-105 z-[9999] flex items-center justify-center"
       >
         <MailIcon />
         {unreadCount > 0 && (
@@ -132,7 +132,7 @@ export const MailWidget = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-44 right-6 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-[10000] overflow-hidden animate-in slide-in-from-bottom-5">
+        <div className="fixed top-24 right-6 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-[10000] overflow-hidden animate-in slide-in-from-top-5">
           <div className="p-4 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/50">
             <h3 className="font-semibold flex items-center gap-2 text-white"><MailIcon /> <span className="ml-2">Partner Mail</span></h3>
             <button onClick={() => setIsOpen(false)} className="text-neutral-400 hover:text-white p-1">
@@ -142,7 +142,7 @@ export const MailWidget = () => {
           
           <div className="p-4 h-64 overflow-y-auto flex flex-col-reverse gap-3 bg-neutral-950/50">
             {messages.length === 0 ? (
-              <p className="text-neutral-500 text-sm text-center my-auto">No messages yet. Send a cute note!</p>
+              <p className="text-neutral-500 text-sm text-center my-auto">No messages yet. Send a note!</p>
             ) : (
               messages.map(msg => (
                 <div key={msg.id} className="bg-neutral-800 p-3 rounded-lg rounded-tl-none border border-neutral-700/50 text-sm text-neutral-200">
@@ -158,7 +158,7 @@ export const MailWidget = () => {
                 type="text" 
                 value={newMessage}
                 onChange={e => setNewMessage(e.target.value)}
-                placeholder="Send a cute message..."
+                placeholder="Send a message..."
                 className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
               />
               <button 
