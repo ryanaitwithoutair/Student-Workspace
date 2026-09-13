@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../context/AppContext';
 import { soundEngine } from '../../audio/soundGenerator';
@@ -44,22 +44,20 @@ export const MailWidget = () => {
       
       setPartnerId(partner);
 
-      // Fetch unread messages
+      // Fetch all messages history
       if (partner) {
-        const { data: unreadMsg } = await supabase
+        const { data: allMsg } = await supabase
           .from('party_messages')
           .select('*')
-          .eq('recipient_id', user.id)
-          .eq('is_read', false)
-          .order('created_at', { ascending: false });
+          .or(`and(sender_id.eq.${user.id},recipient_id.eq.${partner}),and(sender_id.eq.${partner},recipient_id.eq.${user.id})`)
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-        if (unreadMsg && unreadMsg.length > 0) {
-          setMessages(prev => {
-            const newMap = new Map([...prev, ...unreadMsg].map(m => [m.id, m]));
-            return Array.from(newMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          });
-          setUnreadCount(unreadMsg.length);
-          setIsOpen(true); // Pop open if unread exists
+        if (allMsg) {
+          setMessages(allMsg);
+          const unreads = allMsg.filter(m => m.recipient_id === user.id && !m.is_read);
+          setUnreadCount(unreads.length);
+          if (unreads.length > 0) setIsOpen(true);
         }
       }
     };
@@ -88,10 +86,10 @@ export const MailWidget = () => {
 
   const markAsRead = async () => {
     if (unreadCount === 0) return;
-    const unreadIds = messages.filter(m => !m.is_read).map(m => m.id);
+    const unreadIds = messages.filter(m => m.recipient_id === user.id && !m.is_read).map(m => m.id);
     if (unreadIds.length > 0) {
       await supabase.from('party_messages').update({ is_read: true }).in('id', unreadIds);
-      setMessages(prev => prev.map(m => ({ ...m, is_read: true })));
+      setMessages(prev => prev.map(m => unreadIds.includes(m.id) ? { ...m, is_read: true } : m));
       setUnreadCount(0);
     }
   };
@@ -105,7 +103,8 @@ export const MailWidget = () => {
     if (isOpen) {
       markAsRead();
     }
-  }, [isOpen, messages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, messages, user]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -123,9 +122,9 @@ export const MailWidget = () => {
 
     if (error) {
       showToast('Could not send message.', 'error');
-    } else {
+    } else if (data && data[0]) {
+      setMessages(prev => [data[0], ...prev]);
       setNewMessage('');
-      showToast('Message sent! 💌', 'success');
     }
   };
 
@@ -156,11 +155,16 @@ export const MailWidget = () => {
             {messages.length === 0 ? (
               <p className="text-neutral-500 text-sm text-center my-auto">No messages yet. Send a note!</p>
             ) : (
-              messages.map(msg => (
-                <div key={msg.id} className="bg-neutral-800 p-3 rounded-lg rounded-tl-none border border-neutral-700/50 text-sm text-neutral-200">
-                  {msg.content}
-                </div>
-              ))
+              messages.map(msg => {
+                const isMine = msg.sender_id === user.id;
+                return (
+                  <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`p-3 max-w-[85%] rounded-lg text-sm ${isMine ? 'bg-emerald-600 text-white rounded-br-none' : 'bg-neutral-800 text-neutral-200 border border-neutral-700/50 rounded-tl-none'}`}>
+                      {msg.content}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
 
