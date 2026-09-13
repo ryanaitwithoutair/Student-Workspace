@@ -59,7 +59,7 @@ export const MailWidget = () => {
       .channel('public:party_messages')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'party_messages', filter: \ecipient_id=eq.\\ },
+        { event: 'INSERT', schema: 'public', table: 'party_messages', filter: `recipient_id=eq.${user.id}` },
         (payload) => {
           setMessages(prev => [payload.new, ...prev]);
           setUnreadCount(c => c + 1);
@@ -121,7 +121,7 @@ export const MailWidget = () => {
     <>
       <button 
         onClick={handleOpen}
-        className="fixed bottom-24 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg transition-transform hover:scale-105 z-50 flex items-center justify-center"
+        className="fixed bottom-24 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg transition-transform hover:scale-105 z-[9999] flex items-center justify-center"
       >
         <MailIcon />
         {unreadCount > 0 && (
@@ -132,7 +132,7 @@ export const MailWidget = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-44 right-6 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-44 right-6 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-[10000] overflow-hidden animate-in slide-in-from-bottom-5">
           <div className="p-4 border-b border-neutral-800 flex justify-between items-center bg-neutral-900/50">
             <h3 className="font-semibold flex items-center gap-2 text-white"><MailIcon /> <span className="ml-2">Partner Mail</span></h3>
             <button onClick={() => setIsOpen(false)} className="text-neutral-400 hover:text-white p-1">
